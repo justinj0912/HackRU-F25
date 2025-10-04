@@ -35,8 +35,7 @@ class ManimRenderer:
                     "--format", "mp4",
                     "--media_dir", str(self.output_dir),
                     "--quality", "l",  # Low quality for speed
-                    "--disable_caching",  # Ensure fresh render
-                    "--verbose", "INFO"  # Better error reporting
+                    "--disable_caching"  # Ensure fresh render
                 ]
                 
                 # Windows-specific: Use shell=True if needed
