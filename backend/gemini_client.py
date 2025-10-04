@@ -23,7 +23,6 @@ class GeminiClient:
             raise Exception(f"Failed to generate Manim code: {str(e)}")
     
     def _build_prompt(self, question: str, subject: Optional[str] = None) -> str:
-        """Build the prompt for Gemini API"""
         subject_context = f" in the subject of {subject}" if subject else ""
         
         return f"""
@@ -90,7 +89,6 @@ Output format (JSON):
     def _parse_response(self, response_text: str) -> ManimCodeResponse:
         """Parse Gemini response and extract Manim code and narration"""
         try:
-            # Try to extract JSON from the response
             json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
             if json_match:
                 json_str = json_match.group()
@@ -124,13 +122,12 @@ Output format (JSON):
                 estimated_duration=30
             )
 
-    def generate_tutor_response(self, question: str, subject: Optional[str] = None, style: str = "ELI5") -> dict:
+    def generate_tutor_response(self, question: str, subject: Optional[str] = None) -> dict:
         """
-        Generate AI tutor response with ELI5 approach
+        Generate AI tutor response with friendly, simple explanations
         """
-        if style == "ELI5":
-            prompt = f"""
-You are a friendly, patient AI tutor who explains things like you're talking to a 5-year-old. Your goal is to make complex concepts simple and easy to understand.
+        prompt = f"""
+You are a friendly, patient AI tutor. Your goal is to make complex concepts simple and easy to understand.
 
 User Message: "{question}"
 
@@ -144,37 +141,53 @@ Guidelines:
 5. Be encouraging and supportive
 6. Ask follow-up questions to check understanding
 7. Keep explanations concise but comprehensive
-8. Use emojis sparingly to make it more engaging
-9. If it's a greeting, be warm and ask what they'd like to learn about
-10. If it's a question, provide a clear, simple explanation
+8. If it's a greeting, be warm and ask what they'd like to learn about
+9. If it's a question, provide a clear, simple explanation
 
 Format your response as a friendly, conversational reply that directly addresses what the user said.
-"""
-        else:
-            prompt = f"""
-You are an expert AI tutor. Please respond to what the user is saying.
-
-User Message: "{question}"
-
-Please provide a response that:
-1. Directly addresses what the user said
-2. Is clear and well-structured
-3. Is educational and informative
-4. Is appropriate for the subject level
-5. Is engaging and easy to follow
-6. If it's a greeting, greet them back and ask what they'd like to learn about
-7. If it's a question, provide a comprehensive explanation
 """
         
         try:
             response = self.model.generate_content(prompt)
             return {
                 "explanation": response.text,
-                "style": style,
                 "subject": subject
             }
         except Exception as e:
             raise Exception(f"Failed to generate tutor response: {e}")
+
+    def generate_tutor_response_stream(self, question: str, subject: str = None):
+        """
+        Generate streaming tutor response
+        """
+        prompt = f"""
+You are a friendly, patient AI tutor. Your goal is to make complex concepts simple and easy to understand.
+
+User Message: "{question}"
+
+Please respond to what the user is saying. If they're greeting you, greet them back warmly. If they're asking a question, explain it simply. If they're making a statement, acknowledge it and ask a follow-up question.
+
+Guidelines:
+1. Always respond directly to what the user said
+2. Use simple language and short sentences
+3. Use analogies and real-world examples when explaining concepts
+4. Break down complex ideas into smaller, digestible parts
+5. Be encouraging and supportive
+6. Ask follow-up questions to check understanding
+7. Keep explanations concise but comprehensive
+8. If it's a greeting, be warm and ask what they'd like to learn about
+9. If it's a question, provide a clear, simple explanation
+
+Format your response as a friendly, conversational reply that directly addresses what the user said.
+"""
+        
+        try:
+            response = self.model.generate_content(prompt, stream=True)
+            for chunk in response:
+                if chunk.text:
+                    yield chunk.text
+        except Exception as e:
+            yield f"Error: {str(e)}"
 
     def analyze_image(self, image_data: str, question: str = None) -> dict:
         """
@@ -190,9 +203,9 @@ Please provide a response that:
             
             # Create the prompt for image analysis
             prompt = f"""
-            You are an expert math tutor. Analyze this image and provide a helpful explanation.
+            You are an expert tutor. Analyze this image and provide a helpful explanation.
             
-            If this is a mathematical equation or problem:
+            If this is a mathematical equation or other scientific problem:
             1. Identify the equation or problem
             2. Explain what it represents
             3. If it's solvable, provide the solution step by step
@@ -227,3 +240,195 @@ Please provide a response that:
             
         except Exception as e:
             raise Exception(f"Failed to analyze image: {e}")
+
+    def generate_manim_code_from_image(self, image_data: str, question: str = None) -> str:
+        """
+        Generate Manim code based on an image (equation, diagram, etc.)
+        """
+        try:
+            # Remove data URL prefix if present
+            if image_data.startswith('data:image'):
+                image_data = image_data.split(',')[1]
+
+            import base64
+            image_bytes = base64.b64decode(image_data)
+
+            # Create the prompt for Manim code generation from image
+            prompt = f"""
+            You are an expert at creating educational animations with ManimCE v0.18+. 
+            Analyze this image and create a Manim animation that explains the concept visually.
+
+            IMPORTANT MANIM RULES:
+            1. ALWAYS use ManimCE v0.18+ syntax
+            2. ALWAYS use Text() instead of Tex() or MathTex() to avoid LaTeX dependencies
+            3. NEVER use ParametricFunction, Axes, Polygon, RegularPolygon, or complex mathematical objects
+            4. Use only basic shapes: Circle(), Square(), Line(), Dot(), Arrow()
+            5. Keep animations simple and educational
+            6. Use short text labels (max 3-4 words)
+            7. Focus on ONE main concept per animation
+            8. Make animations 3-5 seconds long
+            9. Use simple colors and clear movements
+
+            Based on the image, create a Manim animation that:
+            1. Explains the concept step by step
+            2. Uses simple visual elements
+            3. Is educational and easy to understand
+            4. Breaks down complex ideas into simple visual steps
+
+            CRITICAL: Return ONLY the raw Python code without any markdown formatting, code blocks, or explanations. 
+            Start with "from manim import *" and end with the scene class definition.
+            Do not include ```python or ``` markers.
+            """
+
+            if question:
+                prompt += f"\n\nUser's specific request: {question}"
+
+            # Generate content with image
+            response = self.model.generate_content([
+                prompt,
+                {
+                    "mime_type": "image/png",
+                    "data": image_bytes
+                }
+            ])
+
+            # Clean up the response to remove any markdown formatting
+            code = response.text.strip()
+            
+            # Remove markdown code blocks if present
+            if code.startswith('```python'):
+                code = code[9:]  # Remove ```python
+            elif code.startswith('```'):
+                code = code[3:]   # Remove ```
+            
+            if code.endswith('```'):
+                code = code[:-3]  # Remove trailing ```
+            
+            return code.strip()
+
+        except Exception as e:
+            raise Exception(f"Failed to generate Manim code from image: {e}")
+
+    def generate_manim_code_with_narration_from_image(self, image_data: str, question: str = None) -> tuple[str, str]:
+        """
+        Generate Manim code and narration script from an image
+        """
+        try:
+            # Remove data URL prefix if present
+            if image_data.startswith('data:image'):
+                image_data = image_data.split(',')[1]
+            
+            import base64
+            image_bytes = base64.b64decode(image_data)
+            
+            prompt = f"""
+            Create a ManimCE v0.18+ animation explaining the concept shown in this image.
+
+            RULES:
+            - Use Text() only, no Tex() or MathTex()
+            - Basic shapes only: Circle(), Square(), Line(), Dot(), Arrow()
+            - 5-8 seconds duration for complex equations, 3-5 seconds for simple topics
+            - Simple, educational
+            - For equations: Show complete step-by-step solution
+            - CRITICAL: Always wrap objects in animations like Create(), Write(), or DrawBorderThenFill()
+            - NEVER put raw objects like Arrow() directly in AnimationGroup()
+            - Use self.play(Create(arrow)) not self.play(arrow)
+            - Use only standard Manim colors: RED, GREEN, BLUE, YELLOW, WHITE, BLACK, GRAY, ORANGE, PURPLE, PINK
+            - NEVER use undefined colors like DARK_GREEN, LIGHT_BLUE, etc.
+
+            Return format:
+            MANIM_CODE:
+            [Python code]
+
+            NARRATION:
+            [Short script, max 50 words]
+            """
+
+            if question:
+                prompt += f"\n\nUser's specific request: {question}"
+
+            # Generate content with image
+            response = self.model.generate_content([
+                prompt,
+                {
+                    "mime_type": "image/png",
+                    "data": image_bytes
+                }
+            ])
+
+            text = response.text
+
+            # Parse the response
+            if "MANIM_CODE:" in text and "NARRATION:" in text:
+                parts = text.split("NARRATION:")
+                manim_code = parts[0].replace("MANIM_CODE:", "").strip()
+                narration = parts[1].strip()
+                
+                # Clean up the Manim code
+                if manim_code.startswith('```python'):
+                    manim_code = manim_code[9:]
+                elif manim_code.startswith('```'):
+                    manim_code = manim_code[3:]
+                
+                if manim_code.endswith('```'):
+                    manim_code = manim_code[:-3]
+                
+                return manim_code.strip(), narration.strip()
+            else:
+                raise Exception("Invalid response format from Gemini")
+
+        except Exception as e:
+            raise Exception(f"Failed to generate Manim code with narration from image: {e}")
+
+    def generate_manim_code_with_narration(self, topic: str) -> tuple[str, str]:
+        """
+        Generate Manim code and narration script for a topic
+        """
+        try:
+            prompt = f"""
+            Create a ManimCE v0.18+ animation explaining "{topic}".
+
+            RULES:
+            - Use Text() only, no Tex() or MathTex()
+            - Basic shapes only: Circle(), Square(), Line(), Dot(), Arrow()
+            - 5-8 seconds duration for complex equations, 3-5 seconds for simple topics
+            - Simple, educational
+            - For equations: Show complete step-by-step solution
+            - CRITICAL: Always wrap objects in animations like Create(), Write(), or DrawBorderThenFill()
+            - NEVER put raw objects like Arrow() directly in AnimationGroup()
+            - Use self.play(Create(arrow)) not self.play(arrow)
+            - Use only standard Manim colors: RED, GREEN, BLUE, YELLOW, WHITE, BLACK, GRAY, ORANGE, PURPLE, PINK
+            - NEVER use undefined colors like DARK_GREEN, LIGHT_BLUE, etc.
+
+            Return format:
+            MANIM_CODE:
+            [Python code]
+
+            NARRATION:
+            [Short script, max 50 words]
+            """
+
+            response = self.model.generate_content(prompt)
+            text = response.text
+
+            # Parse the response
+            if "MANIM_CODE:" in text and "NARRATION:" in text:
+                parts = text.split("NARRATION:")
+                manim_code = parts[0].replace("MANIM_CODE:", "").strip()
+                narration = parts[1].strip()
+                
+                # Clean up the Manim code
+                if manim_code.startswith('```python'):
+                    manim_code = manim_code[9:]
+                elif manim_code.startswith('```'):
+                    manim_code = manim_code[3:]
+                
+                if manim_code.endswith('```'):
+                    manim_code = manim_code[:-3]
+                
+                return manim_code.strip(), narration.strip()
+            else:
+                raise Exception("Invalid response format from Gemini")
+
+        except Exception as e:
+            raise Exception(f"Failed to generate Manim code with narration: {e}")

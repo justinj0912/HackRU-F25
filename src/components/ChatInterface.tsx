@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Loader2, Play, Video, Download } from 'lucide-react';
+import { Send, Bot, User, Loader2, Play, Video, Download, Volume2, VolumeX } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { ScrollArea } from './ui/scroll-area';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
+import ReactMarkdown from 'react-markdown';
 import type { Chat } from './ChatSidebar';
 
 interface Message {
@@ -23,18 +24,21 @@ type Theme = 'modern' | 'retro' | 'steampunk';
 interface ChatInterfaceProps {
   activeChat: Chat | null;
   onSendMessage: (chatId: string, message: string) => void;
-  onAddAssistantMessage?: (chatId: string, message: string) => void;
-  onSendImageMessage?: (chatId: string, imageData: string) => void;
+  onAddAssistantMessage?: (chatId: string, message: string, narrationAudioUrl?: string) => void;
   onImageAnalysis?: (imageData: string) => void;
   currentTheme?: Theme;
 }
 
-export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage, onSendImageMessage, onImageAnalysis, currentTheme = 'modern' }: ChatInterfaceProps) {
+export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage, onImageAnalysis, currentTheme = 'modern' }: ChatInterfaceProps) {
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [videoMode, setVideoMode] = useState(false);
+  const [streamingMessage, setStreamingMessage] = useState<string>('');
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [playingAudio, setPlayingAudio] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -43,7 +47,7 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
   // Auto-scroll to bottom when new messages are added
   useEffect(() => {
     if (activeChat) {
-      scrollToBottom();
+    scrollToBottom();
     }
   }, [activeChat?.messages]);
 
@@ -110,10 +114,14 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
         if (response.ok) {
           const videoData = await response.json();
           console.log('Video data received:', videoData);
+          console.log('Video URL:', videoData.video_url);
           
           // Add video directly to the chat
           if (onAddAssistantMessage) {
-            onAddAssistantMessage(activeChat.id, `VIDEO:${videoData.video_url}`);
+            console.log('Adding video to chat with URL:', videoData.video_url);
+            onAddAssistantMessage(activeChat.id, videoData.video_url, videoData.narration_audio_url);
+          } else {
+            console.error('onAddAssistantMessage is not available');
           }
         } else {
           // Log the error details
@@ -127,6 +135,8 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
         }
       } catch (error) {
         console.error('Error generating video:', error);
+        console.error('Error name:', error.name);
+        console.error('Error message:', error.message);
         
         // Handle different types of errors
         let errorMessage = `Sorry, I had trouble generating a video for "${topic}". Let me explain it in words instead!`;
@@ -143,9 +153,12 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
         }
       }
     } else {
-      // AI Tutor response with ELI5 approach when video mode is disabled
+      // Cognify response with ELI5 approach when video mode is disabled
       try {
-        const response = await fetch('http://localhost:8000/tutor-response', {
+        setIsStreaming(true);
+        setStreamingMessage('');
+
+        const response = await fetch('http://localhost:8000/tutor-response-stream', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -158,10 +171,35 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
         });
 
         if (response.ok) {
-          const tutorData = await response.json();
-          
-          if (onAddAssistantMessage) {
-            onAddAssistantMessage(activeChat.id, tutorData.explanation);
+          const reader = response.body?.getReader();
+          const decoder = new TextDecoder();
+          let accumulatedText = '';
+
+          if (reader) {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+
+              const chunk = decoder.decode(value);
+              const lines = chunk.split('\n');
+              
+              for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                  const text = line.slice(6);
+                  if (text.trim()) {
+                    accumulatedText += text;
+                    setStreamingMessage(accumulatedText);
+                    // Add a small delay to make streaming more readable
+                    await new Promise(resolve => setTimeout(resolve, 50));
+                  }
+                }
+              }
+            }
+          }
+
+          // Add the final message to chat
+          if (onAddAssistantMessage && accumulatedText) {
+            onAddAssistantMessage(activeChat.id, accumulatedText);
           }
         } else {
           // Fallback to simple ELI5 response
@@ -181,13 +219,16 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
       } catch (error) {
         console.error('Error getting tutor response:', error);
         // Fallback to simple ELI5 response
-        if (onAddAssistantMessage) {
+      if (onAddAssistantMessage) {
           onAddAssistantMessage(activeChat.id, `Let me explain "${userMessage}" in simple terms! This is a great question that many students ask.`);
         }
+      } finally {
+        setIsStreaming(false);
+        setStreamingMessage('');
       }
     }
     
-    setIsLoading(false);
+      setIsLoading(false);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -203,34 +244,67 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
     setIsLoading(true);
     
     try {
-      const response = await fetch('http://localhost:8000/analyze-image', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          image_data: imageData,
-          question: null
-        }),
-      });
+      if (videoMode) {
+        // Video mode: Generate Manim animation from image
+        const response = await fetch('http://localhost:8000/render-video-from-image', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            image_data: imageData,
+            question: null
+          }),
+        });
 
-      if (response.ok) {
-        const analysisData = await response.json();
-        
-        // Add AI response
-        if (onAddAssistantMessage) {
-          onAddAssistantMessage(activeChat.id, analysisData.explanation);
+        if (response.ok) {
+          const result = await response.json();
+          
+          if (result.video_url && onAddAssistantMessage) {
+            onAddAssistantMessage(activeChat.id, result.video_url, result.narration_audio_url);
+          } else {
+            // Fallback to text response
+            if (onAddAssistantMessage) {
+              onAddAssistantMessage(activeChat.id, "Sorry, I couldn't generate a video from the image. Let me explain it in words instead!");
+            }
+          }
+        } else {
+          // Fallback to text response
+          if (onAddAssistantMessage) {
+            onAddAssistantMessage(activeChat.id, "Sorry, I couldn't generate a video from the image. Let me explain it in words instead!");
+          }
         }
       } else {
-        console.error('Image analysis failed:', response.status);
-        if (onAddAssistantMessage) {
-          onAddAssistantMessage(activeChat.id, "I had trouble analyzing the image. Please try again or describe what you'd like help with!");
+        // Normal mode: Analyze image and provide text explanation
+        const response = await fetch('http://localhost:8000/analyze-image', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            image_data: imageData,
+            question: null
+          }),
+        });
+
+        if (response.ok) {
+          const analysisData = await response.json();
+          
+          // Add AI response
+          if (onAddAssistantMessage) {
+            onAddAssistantMessage(activeChat.id, analysisData.explanation);
+          }
+        } else {
+          console.error('Image analysis failed:', response.status);
+          if (onAddAssistantMessage) {
+            onAddAssistantMessage(activeChat.id, "I had trouble analyzing the image. Please try again or describe what you'd like help with!");
+          }
         }
       }
     } catch (error) {
-      console.error('Error analyzing image:', error);
+      console.error('Error processing image:', error);
       if (onAddAssistantMessage) {
-        onAddAssistantMessage(activeChat.id, "I couldn't analyze the image. Please try again or describe what you'd like help with!");
+        onAddAssistantMessage(activeChat.id, "I couldn't process the image. Please try again or describe what you'd like help with!");
       }
     }
     
@@ -240,6 +314,59 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
   const generateVideo = () => {
     // Mock video generation
     alert('Video generation feature would integrate with video creation API. This is a mockup demonstration.');
+  };
+
+  const handleTextToSpeech = async (text: string, messageId: string) => {
+    try {
+      // Stop any currently playing audio
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+
+      const response = await fetch('http://localhost:8000/text-to-speech', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: text,
+          voice_id: "21m00Tcm4TlvDq8ikWAM" // Rachel voice
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        
+        // Create audio element and play
+        const audio = new Audio(`http://localhost:8000${result.audio_url}`);
+        audioRef.current = audio;
+        setPlayingAudio(messageId);
+        
+        audio.onended = () => {
+          setPlayingAudio(null);
+          audioRef.current = null;
+        };
+        
+        audio.onerror = () => {
+          setPlayingAudio(null);
+          audioRef.current = null;
+        };
+        
+        await audio.play();
+      }
+    } catch (error) {
+      console.error('Error generating speech:', error);
+      setPlayingAudio(null);
+    }
+  };
+
+  const stopAudio = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    setPlayingAudio(null);
   };
 
   // Expose image analysis function to parent
@@ -267,7 +394,7 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
             : 'text-gray-400'
         }`}>
           <Bot className="w-16 h-16 mx-auto mb-4 opacity-50" />
-          <h3 className="text-lg mb-2">AI Tutor Ready</h3>
+          <h3 className="text-lg mb-2">Cognify Ready</h3>
           <p>Select a chat or create a new one to start learning</p>
         </div>
       </div>
@@ -370,39 +497,83 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
                         : 'bg-red-700 border-red-600')
                 }`}
               >
-                {message.hasImage && message.imageData && (
-                  <div className="mb-3">
-                    <img 
-                      src={message.imageData} 
-                      alt="User drawing" 
-                      className="max-w-full h-auto rounded-lg border border-gray-600"
-                      style={{ maxHeight: '300px' }}
-                    />
+                
+                {message.role === 'assistant' && !message.content.startsWith('/videos/') ? (
+                  <div className={`prose prose-sm max-w-none ${
+                    currentTheme === 'retro'
+                      ? 'prose-gray'
+                      : currentTheme === 'steampunk'
+                      ? 'prose-steam'
+                      : 'prose-invert'
+                  }`}>
+                    <ReactMarkdown
+                      components={{
+                        p: ({ children }) => <p className="mb-2 last:mb-0 text-white">{children}</p>,
+                        ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-1 text-white">{children}</ul>,
+                        ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-1 text-white">{children}</ol>,
+                        li: ({ children }) => <li className="text-sm text-white">{children}</li>,
+                        strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
+                        em: ({ children }) => <em className="italic text-white">{children}</em>,
+                        code: ({ children }) => <code className="bg-gray-700 px-1 py-0.5 rounded text-xs font-mono text-white">{children}</code>,
+                        pre: ({ children }) => <pre className="bg-gray-800 p-2 rounded text-xs font-mono overflow-x-auto mb-2 text-white">{children}</pre>,
+                        h1: ({ children }) => <h1 className="text-lg font-bold mb-2 text-white">{children}</h1>,
+                        h2: ({ children }) => <h2 className="text-base font-bold mb-2 text-white">{children}</h2>,
+                        h3: ({ children }) => <h3 className="text-sm font-bold mb-1 text-white">{children}</h3>,
+                        blockquote: ({ children }) => <blockquote className="border-l-4 border-gray-500 pl-3 italic mb-2 text-white">{children}</blockquote>,
+                      }}
+                    >
+                      {message.content}
+                    </ReactMarkdown>
+                  </div>
+                ) : message.role === 'user' ? (
+                  <p className={`whitespace-pre-wrap ${
+                    currentTheme === 'retro'
+                        ? 'text-white'
+                      : currentTheme === 'steampunk'
+                        ? 'text-steam-charcoal'
+                      : 'text-white'
+                    }`}>{message.content}</p>
+                ) : null}
+                
+                {/* Text-to-Speech button for assistant messages */}
+                {message.role === 'assistant' && !message.content.startsWith('/videos/') && (
+                  <div className="mt-2 flex justify-end">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        if (playingAudio === `msg-${index}`) {
+                          stopAudio();
+                        } else {
+                          handleTextToSpeech(message.content, `msg-${index}`);
+                        }
+                      }}
+                      className="h-8 w-8 p-0 hover:bg-gray-600"
+                    >
+                      {playingAudio === `msg-${index}` ? (
+                        <VolumeX className="h-4 w-4 text-white" />
+                      ) : (
+                        <Volume2 className="h-4 w-4 text-white" />
+                      )}
+                    </Button>
                   </div>
                 )}
                 
-                <p className={`whitespace-pre-wrap ${
-                  currentTheme === 'retro'
-                    ? (message.role === 'assistant' ? 'text-black' : 'text-white')
-                    : currentTheme === 'steampunk'
-                    ? (message.role === 'assistant' ? 'text-steam-cream' : 'text-steam-charcoal')
-                    : 'text-white'
-                }`}>{message.content}</p>
-                
-        {message.role === 'assistant' && message.content.startsWith('VIDEO:') && (
+        {message.role === 'assistant' && message.content.startsWith('/videos/') && (
           <div className="mt-3 pt-3 border-t border-gray-600">
             <video 
               controls 
               className="w-full max-w-sm sm:max-w-md md:max-w-lg lg:max-w-xl xl:max-w-2xl rounded-lg shadow-lg"
-              src={`http://localhost:8000${message.content.replace('VIDEO:', '')}`}
+              src={`http://localhost:8000${message.content}`}
               onError={(e) => console.error('Video load error:', e)}
               onLoadStart={() => console.log('Video loading started')}
               preload="metadata"
             >
               Your browser does not support the video tag.
             </video>
-          </div>
-        )}
+            
+                  </div>
+                )}
                 
                 <div className={`text-xs mt-2 ${
                   currentTheme === 'retro'
@@ -430,7 +601,64 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
             );
           })}
 
-          {isLoading && (
+          {/* Streaming message display */}
+          {isStreaming && streamingMessage && (
+            <div className="flex gap-3 justify-start">
+              <div className={`w-8 h-8 flex items-center justify-center flex-shrink-0 ${
+                currentTheme === 'retro'
+                  ? 'bg-retro-blue border-2 border-retro-dark'
+                  : currentTheme === 'steampunk'
+                  ? 'steam-metal-frame bg-steam-brass'
+                  : 'bg-red-700 rounded-full'
+              }`}>
+                <Bot className="w-4 h-4 text-white" />
+              </div>
+              
+              <Card className={`max-w-[80%] p-3 ${
+                currentTheme === 'retro'
+                  ? 'retro-card !bg-retro-light'
+                  : currentTheme === 'steampunk'
+                  ? 'steam-card !bg-steam-copper'
+                  : 'bg-gray-700 border-gray-600'
+              }`}>
+                <div className={`prose prose-sm max-w-none ${
+                  currentTheme === 'retro'
+                    ? 'prose-gray'
+                    : currentTheme === 'steampunk'
+                    ? 'prose-steam'
+                    : 'prose-invert'
+                }`}>
+                  <ReactMarkdown
+                    components={{
+                      p: ({ children }) => <p className="mb-2 last:mb-0 text-white">{children}</p>,
+                      ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-1 text-white">{children}</ul>,
+                      ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-1 text-white">{children}</ol>,
+                      li: ({ children }) => <li className="text-sm text-white">{children}</li>,
+                      strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
+                      em: ({ children }) => <em className="italic text-white">{children}</em>,
+                      code: ({ children }) => <code className="bg-gray-700 px-1 py-0.5 rounded text-xs font-mono text-white">{children}</code>,
+                      pre: ({ children }) => <pre className="bg-gray-800 p-2 rounded text-xs font-mono overflow-x-auto mb-2 text-white">{children}</pre>,
+                      h1: ({ children }) => <h1 className="text-lg font-bold mb-2 text-white">{children}</h1>,
+                      h2: ({ children }) => <h2 className="text-base font-bold mb-2 text-white">{children}</h2>,
+                      h3: ({ children }) => <h3 className="text-sm font-bold mb-1 text-white">{children}</h3>,
+                      blockquote: ({ children }) => <blockquote className="border-l-4 border-gray-500 pl-3 italic mb-2 text-white">{children}</blockquote>,
+                    }}
+                  >
+                    {streamingMessage}
+                  </ReactMarkdown>
+                </div>
+                <div className="flex items-center mt-2">
+                  <div className="flex space-x-1">
+                    <div className="w-2 h-2 bg-white rounded-full animate-bounce"></div>
+                    <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                    <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                  </div>
+                </div>
+              </Card>
+            </div>
+          )}
+
+          {isLoading && !isStreaming && (
             <div className="flex gap-3 justify-start">
               <div className={`w-8 h-8 flex items-center justify-center flex-shrink-0 ${
                 currentTheme === 'retro' 
@@ -505,6 +733,7 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
           </Button>
         </div>
       </div>
+
     </div>
   );
 }

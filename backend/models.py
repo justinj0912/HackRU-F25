@@ -23,6 +23,7 @@ class VideoResponse(BaseModel):
     file_size: int
     created_at: datetime
     scene_metadata: Optional[List[dict]] = None
+    narration_audio_url: Optional[str] = None
 
 class ErrorResponse(BaseModel):
     error: str
@@ -45,4 +46,12 @@ class ImageAnalysisResponse(BaseModel):
     equation: Optional[str] = None
     solution: Optional[str] = None
     explanation: str
+
+class TextToSpeechRequest(BaseModel):
+    text: str
+    voice_id: Optional[str] = "21m00Tcm4TlvDq8ikWAM"  # Default to Rachel voice
+
+class TextToSpeechResponse(BaseModel):
+    audio_url: str
+    duration: Optional[float] = None
 

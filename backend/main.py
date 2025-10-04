@@ -1,15 +1,16 @@
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 from datetime import datetime
 import os
 from pathlib import Path
 
-from models import QuestionRequest, VideoResponse, ErrorResponse, ManimCodeResponse, ImageAnalysisRequest, ImageAnalysisResponse
+from models import QuestionRequest, VideoResponse, ErrorResponse, ManimCodeResponse, ImageAnalysisRequest, ImageAnalysisResponse, TextToSpeechRequest, TextToSpeechResponse
 from gemini_client import GeminiClient
 from manim_renderer import ManimRenderer
+from elevenlabs_client import elevenlabs_client
 from config import HOST, PORT, DEBUG
 
 app = FastAPI(
@@ -64,25 +65,31 @@ async def render_video(request: QuestionRequest, background_tasks: BackgroundTas
     Generate Manim code and render video in one step
     """
     try:
-        # Generate Manim code
-        code_response = gemini_client.generate_manim_code(
-            question=request.question,
-            subject=request.subject
-        )
+        # Generate Manim code and narration
+        manim_code, narration = gemini_client.generate_manim_code_with_narration(request.question)
         
         # Validate code before rendering
-        is_valid, error_msg = manim_renderer.validate_manim_code(code_response.code)
+        is_valid, error_msg = manim_renderer.validate_manim_code(manim_code)
         if not is_valid:
             raise HTTPException(status_code=400, detail=f"Invalid Manim code: {error_msg}")
         
         # Extract scene name from code
-        scene_name = manim_renderer.extract_scene_name(code_response.code)
+        scene_name = manim_renderer.extract_scene_name(manim_code)
+        
+        # Generate narration audio (only if narration is substantial)
+        narration_audio_path = None
+        if elevenlabs_client.should_generate_audio(narration):
+            narration_audio_path = elevenlabs_client.generate_speech(narration)
         
         # Render animation
         video_path, duration, file_size = manim_renderer.render_animation(
-            manim_code=code_response.code,
+            manim_code=manim_code,
             scene_name=scene_name
         )
+        
+        # Combine video with narration audio
+        if narration_audio_path and Path(narration_audio_path).exists():
+            video_path = manim_renderer.combine_video_audio(video_path, narration_audio_path)
         
         # Generate video URL - use relative path from output directory
         video_path_obj = Path(video_path)
@@ -96,7 +103,8 @@ async def render_video(request: QuestionRequest, background_tasks: BackgroundTas
             video_url=video_url,
             duration=duration,
             file_size=file_size,
-            created_at=datetime.now()
+            created_at=datetime.now(),
+            narration_audio_url=None  # Audio is now embedded in video
         )
         
     except HTTPException:
@@ -122,13 +130,12 @@ async def serve_video(file_path: str):
 @app.post("/tutor-response")
 async def tutor_response(request: QuestionRequest):
     """
-    Generate AI tutor response with ELI5 approach
+    Generate AI tutor response with friendly, simple explanations
     """
     try:
         response = gemini_client.generate_tutor_response(
             question=request.question,
-            subject=request.subject,
-            style="ELI5"
+            subject=request.subject
         )
         return response
     except Exception as e:
@@ -149,6 +156,30 @@ async def validate_code(request: dict):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/tutor-response-stream")
+async def tutor_response_stream(request: QuestionRequest):
+    """
+    Get streaming AI tutor response
+    """
+    def generate():
+        try:
+            for chunk in gemini_client.generate_tutor_response_stream(
+                request.question, 
+                request.subject
+            ):
+                yield f"data: {chunk}\n\n"
+        except Exception as e:
+            yield f"data: Error: {str(e)}\n\n"
+    
+    return StreamingResponse(
+        generate(),
+        media_type="text/plain",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        }
+    )
+
 @app.post("/analyze-image", response_model=ImageAnalysisResponse)
 async def analyze_image(request: ImageAnalysisRequest):
     """
@@ -159,6 +190,90 @@ async def analyze_image(request: ImageAnalysisRequest):
         return ImageAnalysisResponse(**result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/render-video-from-image", response_model=VideoResponse)
+async def render_video_from_image(request: ImageAnalysisRequest):
+    """
+    Generate and render a Manim video from an image
+    """
+    try:
+        # Generate Manim code and narration from image
+        manim_code, narration = gemini_client.generate_manim_code_with_narration_from_image(request.image_data, request.question)
+        
+        # Validate code before rendering
+        is_valid, error_msg = manim_renderer.validate_manim_code(manim_code)
+        if not is_valid:
+            raise HTTPException(status_code=400, detail=f"Invalid Manim code: {error_msg}")
+        
+        # Extract scene name from the generated code
+        scene_name = manim_renderer.extract_scene_name(manim_code)
+        
+        # Generate narration audio (only if narration is substantial)
+        narration_audio_path = None
+        if elevenlabs_client.should_generate_audio(narration):
+            narration_audio_path = elevenlabs_client.generate_speech(narration)
+        
+        # Render the animation
+        result = manim_renderer.render_animation(manim_code, scene_name)
+        video_path_str, duration, file_size = result
+        video_path = Path(video_path_str)
+        
+        # Combine video with narration audio
+        if narration_audio_path and Path(narration_audio_path).exists():
+            video_path_str = manim_renderer.combine_video_audio(str(video_path), narration_audio_path)
+            video_path = Path(video_path_str)
+        
+        if video_path and video_path.exists():
+            # Construct the video URL
+            video_url = f"/videos/{video_path.relative_to(manim_renderer.output_dir)}"
+            
+            return VideoResponse(
+                video_url=video_url,
+                duration=duration,
+                file_size=file_size,
+                created_at=datetime.now(),
+                narration_audio_url=None  # Audio is now embedded in video
+            )
+        else:
+            raise HTTPException(status_code=500, detail="Failed to render video from image")
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate video from image: {e}")
+
+@app.post("/text-to-speech", response_model=TextToSpeechResponse)
+async def text_to_speech(request: TextToSpeechRequest):
+    """
+    Convert text to speech using ElevenLabs
+    """
+    try:
+        # Check if audio should be generated
+        if not elevenlabs_client.should_generate_audio(request.text):
+            raise HTTPException(status_code=400, detail="Text too short for audio generation")
+        
+        # Generate audio file
+        audio_path = elevenlabs_client.generate_speech(request.text, request.voice_id)
+        
+        # Create URL for the audio file
+        audio_url = f"/audio/{Path(audio_path).name}"
+        
+        return TextToSpeechResponse(
+            audio_url=audio_url,
+            duration=None  # Could be calculated if needed
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate speech: {e}")
+
+@app.get("/audio/{filename}")
+async def serve_audio(filename: str):
+    """
+    Serve audio files
+    """
+    audio_path = Path("output/audio") / filename
+    if audio_path.exists():
+        return FileResponse(audio_path, media_type="audio/mpeg")
+    else:
+        raise HTTPException(status_code=404, detail="Audio file not found")
 
 @app.get("/cleanup")
 async def cleanup_videos(background_tasks: BackgroundTasks):

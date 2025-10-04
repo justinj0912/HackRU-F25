@@ -69,11 +69,12 @@ export default function App() {
     }));
   }, []);
 
-  const addAssistantMessage = useCallback((chatId: string, message: string) => {
+  const addAssistantMessage = useCallback((chatId: string, message: string, narrationAudioUrl?: string) => {
     const assistantMessage = {
       role: 'assistant' as const,
       content: message,
       timestamp: new Date(),
+      narrationAudioUrl: narrationAudioUrl,
     };
 
     setChats(prev => prev.map(chat => {
@@ -87,25 +88,6 @@ export default function App() {
     }));
   }, []);
 
-  const sendImageMessage = useCallback((chatId: string, imageData: string) => {
-    const imageMessage = {
-      role: 'user' as const,
-      content: 'Sent an image for analysis',
-      timestamp: new Date(),
-      hasImage: true,
-      imageData: imageData,
-    };
-
-    setChats(prev => prev.map(chat => {
-      if (chat.id === chatId) {
-        return {
-          ...chat,
-          messages: [...chat.messages, imageMessage],
-        };
-      }
-      return chat;
-    }));
-  }, []);
 
   const handleSendMessage = useCallback((chatId: string, message: string) => {
     sendMessage(chatId, message);
@@ -202,7 +184,7 @@ export default function App() {
                     ? 'text-black' 
                     : 'text-white'
                 }`}>
-                  AI Tutor {currentTheme === 'retro' && '- Windows 98 Edition'}
+                  Cognify {currentTheme === 'retro' && '- Windows 98 Edition'}
                 </h1>
               </div>
 
@@ -258,7 +240,6 @@ export default function App() {
                 activeChat={currentChat || null}
                 onSendMessage={handleSendMessage}
                 onAddAssistantMessage={addAssistantMessage}
-                onSendImageMessage={sendImageMessage}
                 onImageAnalysis={(imageData) => {
                   // This will be called by the whiteboard
                 }}
@@ -288,8 +269,7 @@ export default function App() {
             onToggle={() => setIsWhiteboardVisible(!isWhiteboardVisible)}
             onSendToChat={(imageData) => {
               if (currentChat) {
-                sendImageMessage(currentChat.id, imageData);
-                // Trigger image analysis
+                // Trigger image analysis directly
                 setTimeout(() => {
                   if ((window as any).triggerImageAnalysis) {
                     (window as any).triggerImageAnalysis(imageData);

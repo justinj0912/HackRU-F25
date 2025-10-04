@@ -16,6 +16,7 @@ export interface Chat {
     timestamp: Date;
     hasImage?: boolean;
     imageData?: string;
+    narrationAudioUrl?: string;
   }>;
   createdAt: Date;
 }

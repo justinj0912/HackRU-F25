@@ -6,6 +6,7 @@ from typing import Optional, Tuple
 from pathlib import Path
 import time
 from config import MANIM_OUTPUT_DIR, MAX_VIDEO_DURATION
+# from moviepy.editor import VideoFileClip, AudioFileClip  # Removed - using ffmpeg directly
 
 class ManimRenderer:
     def __init__(self):
@@ -151,3 +152,51 @@ class ManimRenderer:
             return False, f"Syntax error: {str(e)}"
         except Exception as e:
             return False, f"Validation error: {str(e)}"
+
+    def combine_video_audio(self, video_path: str, audio_path: str) -> str:
+        """
+        Combine video and audio files into a single video with audio using ffmpeg
+        
+        Args:
+            video_path: Path to the video file
+            audio_path: Path to the audio file
+            
+        Returns:
+            Path to the combined video file
+        """
+        try:
+            # Create output path
+            video_path_obj = Path(video_path)
+            output_path = video_path_obj.parent / f"{video_path_obj.stem}_with_audio{video_path_obj.suffix}"
+            
+            # Use ffmpeg to combine video and audio
+            # -c:v copy: copy video stream without re-encoding
+            # -c:a aac: encode audio as AAC
+            # -map 0:v:0: map video from first input
+            # -map 1:a:0: map audio from second input
+            # -y: overwrite output file
+            cmd = [
+                'ffmpeg',
+                '-i', video_path,
+                '-i', audio_path,
+                '-c:v', 'copy',
+                '-c:a', 'aac',
+                '-map', '0:v:0',
+                '-map', '1:a:0',
+                '-y',
+                str(output_path)
+            ]
+            
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                # Replace original video with the one that has audio
+                shutil.move(str(output_path), video_path)
+                return video_path
+            else:
+                print(f"FFmpeg error: {result.stderr}")
+                return video_path  # Return original video if combination fails
+                
+        except Exception as e:
+            print(f"Error combining video and audio: {e}")
+            return video_path  # Return original video if combination fails
