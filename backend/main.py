@@ -7,7 +7,7 @@ from datetime import datetime
 import os
 from pathlib import Path
 
-from models import QuestionRequest, VideoResponse, ErrorResponse, ManimCodeResponse, ImageAnalysisRequest, ImageAnalysisResponse, TextToSpeechRequest, TextToSpeechResponse
+from models import QuestionRequest, VideoResponse, ErrorResponse, ManimCodeResponse, ImageAnalysisRequest, ImageAnalysisResponse, TextToSpeechRequest, TextToSpeechResponse, MindMapRequest, MindMapResponse
 from gemini_client import GeminiClient
 from manim_renderer import ManimRenderer
 from elevenlabs_client import elevenlabs_client
@@ -282,6 +282,31 @@ async def cleanup_videos(background_tasks: BackgroundTasks):
     """
     background_tasks.add_task(manim_renderer.cleanup_old_videos)
     return {"message": "Cleanup task scheduled"}
+
+@app.post("/generate-mind-map", response_model=MindMapResponse)
+async def generate_mind_map(request: MindMapRequest):
+    """
+    Generate a mind map structure for a given topic
+    """
+    try:
+        # Generate mind map nodes using Gemini
+        nodes = gemini_client.generate_mind_map(
+            topic=request.topic,
+            depth=request.depth,
+            max_branches=request.max_branches
+        )
+        
+        return MindMapResponse(
+            nodes=nodes,
+            topic=request.topic,
+            created_at=datetime.now()
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate mind map: {str(e)}"
+        )
 
 if __name__ == "__main__":
     uvicorn.run(

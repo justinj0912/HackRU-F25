@@ -55,3 +55,25 @@ class TextToSpeechResponse(BaseModel):
     audio_url: str
     duration: Optional[float] = None
 
+class MindMapNode(BaseModel):
+    id: str
+    title: str
+    content: str
+    x: float
+    y: float
+    level: int
+    parent_id: Optional[str] = None
+    children: List[str] = []
+    is_main_topic: bool = False
+    is_suggestion: bool = False
+
+class MindMapRequest(BaseModel):
+    topic: str
+    depth: Optional[int] = 3
+    max_branches: Optional[int] = 5
+
+class MindMapResponse(BaseModel):
+    nodes: List[MindMapNode]
+    topic: str
+    created_at: datetime
+

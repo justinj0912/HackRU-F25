@@ -4,7 +4,8 @@ import { Button } from './components/ui/button';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from './components/ui/resizable';
 import { ChatSidebar, type Chat } from './components/ChatSidebar';
 import { ChatInterface } from './components/ChatInterface';
-import { Whiteboard } from './components/Whiteboard';
+import { Blackboard } from './components/Blackboard';
+import { MindMapCanvas, MindMapNodeData } from './components/MindMapCanvas';
 
 type Theme = 'modern' | 'retro';
 
@@ -20,6 +21,21 @@ export default function App() {
       id: Date.now().toString(),
       title: `Chat ${chats.length + 1}`,
       color: '#DC2626', // red-600
+      type: 'chat',
+      messages: [],
+      createdAt: new Date(),
+    };
+    
+    setChats(prev => [newChat, ...prev]);
+    setActiveChat(newChat.id);
+  }, [chats.length]);
+
+  const createNewMindMap = useCallback(() => {
+    const newChat: Chat = {
+      id: Date.now().toString(),
+      title: `Mind Map ${chats.length + 1}`,
+      color: '#8B5A3C', // brown
+      type: 'mindmap',
       messages: [],
       createdAt: new Date(),
     };
@@ -31,6 +47,107 @@ export default function App() {
   const selectChat = useCallback((chatId: string) => {
     setActiveChat(chatId);
   }, []);
+
+  const generateMindMapTopics = async (topic: string): Promise<MindMapNodeData[]> => {
+    try {
+      const response = await fetch('http://localhost:8000/generate-mind-map', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          topic: topic,
+          depth: 3,
+          max_branches: 5
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate mind map');
+      }
+
+      const data = await response.json();
+      return data.nodes;
+    } catch (error) {
+      console.error('Error generating mind map:', error);
+      
+      // Fallback: Create a simple mind map structure when API is unavailable
+      const fallbackNodes: MindMapNodeData[] = [
+        {
+          id: 'main_topic',
+          title: topic,
+          content: `This is the main topic: ${topic}. This mind map will help you explore and organize concepts related to this subject.`,
+          x: 400,
+          y: 300,
+          level: 0,
+          parentId: null,
+          children: [],
+          isExpanded: true,
+          isEditing: false,
+          isSuggestion: false,
+          isMainTopic: true
+        },
+        {
+          id: 'suggestion_1',
+          title: 'Key Concepts',
+          content: `Explore the fundamental concepts and principles related to ${topic}.`,
+          x: 100,
+          y: 150,
+          level: 0,
+          parentId: null,
+          children: [],
+          isExpanded: true,
+          isEditing: false,
+          isSuggestion: true,
+          isMainTopic: false
+        },
+        {
+          id: 'suggestion_2',
+          title: 'Applications',
+          content: `Learn about real-world applications and examples of ${topic}.`,
+          x: 450,
+          y: 150,
+          level: 0,
+          parentId: null,
+          children: [],
+          isExpanded: true,
+          isEditing: false,
+          isSuggestion: true,
+          isMainTopic: false
+        },
+        {
+          id: 'suggestion_3',
+          title: 'History & Development',
+          content: `Discover the historical context and development of ${topic}.`,
+          x: 100,
+          y: 350,
+          level: 0,
+          parentId: null,
+          children: [],
+          isExpanded: true,
+          isEditing: false,
+          isSuggestion: true,
+          isMainTopic: false
+        },
+        {
+          id: 'suggestion_4',
+          title: 'Future Trends',
+          content: `Explore emerging trends and future directions in ${topic}.`,
+          x: 450,
+          y: 350,
+          level: 0,
+          parentId: null,
+          children: [],
+          isExpanded: true,
+          isEditing: false,
+          isSuggestion: true,
+          isMainTopic: false
+        }
+      ];
+      
+      return fallbackNodes;
+    }
+  };
 
   const renameChat = useCallback((chatId: string, newTitle: string) => {
     setChats(prev => prev.map(chat => 
@@ -102,7 +219,7 @@ export default function App() {
       case 'retro':
         return 'retro-theme bg-retro-gray text-black font-retro';
       default:
-        return 'bg-gray-900 text-white';
+        return 'bg-background text-foreground';
     }
   };
 
@@ -137,6 +254,7 @@ export default function App() {
             activeChat={activeChat}
             onSelectChat={selectChat}
             onCreateChat={createNewChat}
+            onCreateMindMap={createNewMindMap}
             onRenameChat={renameChat}
             onDeleteChat={deleteChat}
             onChangeColor={changeColor}
@@ -148,7 +266,7 @@ export default function App() {
           <ResizableHandle className={`w-1 transition-colors ${
             currentTheme === 'retro' 
               ? 'retro-handle' 
-              : 'bg-gray-700 hover:bg-gray-600'
+              : 'bg-border hover:bg-muted'
           }`} />
         )}
 
@@ -162,7 +280,7 @@ export default function App() {
             <div className={`flex items-center justify-between p-2 border-b ${
               currentTheme === 'retro'
                 ? 'bg-retro-gray border-retro-dark retro-inset'
-                : 'bg-gray-900 border-gray-700'
+                : 'bg-card border-border'
             }`}>
               <div className="flex items-center gap-2">
                 {!sidebarVisible && (
@@ -173,7 +291,7 @@ export default function App() {
                     className={
                       currentTheme === 'retro' 
                         ? "retro-button" 
-                        : "text-gray-400 hover:text-white"
+                        : "text-muted-foreground hover:text-foreground"
                     }
                   >
                     <PanelLeft className="w-4 h-4" />
@@ -182,7 +300,7 @@ export default function App() {
                 <h1 className={`text-lg ${
                   currentTheme === 'retro' 
                     ? 'text-black' 
-                    : 'text-white'
+                    : 'text-foreground'
                 }`}>
                   Cognify {currentTheme === 'retro' && '- Windows 98 Edition'}
                 </h1>
@@ -211,7 +329,7 @@ export default function App() {
                     className={
                       currentTheme === 'retro' 
                         ? "retro-button" 
-                        : "text-gray-400 hover:text-white"
+                        : "text-muted-foreground hover:text-foreground"
                     }
                   >
                     <PanelLeft className="w-4 h-4" />
@@ -229,22 +347,28 @@ export default function App() {
                   }`}
                 >
                   <PanelRight className="w-4 h-4" />
-                  Whiteboard
+                  Blackboard
                 </Button>
               </div>
             </div>
 
-            {/* Chat Interface */}
+            {/* Chat Interface or Mind Map */}
             <div className="flex-1">
-              <ChatInterface
-                activeChat={currentChat || null}
-                onSendMessage={handleSendMessage}
-                onAddAssistantMessage={addAssistantMessage}
-                onImageAnalysis={(imageData) => {
-                  // This will be called by the whiteboard
-                }}
-                currentTheme={currentTheme}
-              />
+              {currentChat?.type === 'mindmap' ? (
+                <MindMapCanvas
+                  onGenerateTopics={generateMindMapTopics}
+                />
+              ) : (
+                <ChatInterface
+                  activeChat={currentChat || null}
+                  onSendMessage={handleSendMessage}
+                  onAddAssistantMessage={addAssistantMessage}
+                  onImageAnalysis={(imageData) => {
+                    // This will be called by the whiteboard
+                  }}
+                  currentTheme={currentTheme}
+                />
+              )}
             </div>
           </div>
         </ResizablePanel>
@@ -254,7 +378,7 @@ export default function App() {
           <ResizableHandle className={`w-1 transition-colors ${
             currentTheme === 'retro' 
               ? 'retro-handle' 
-              : 'bg-gray-700 hover:bg-gray-600'
+              : 'bg-border hover:bg-muted'
           }`} />
         )}
         
@@ -264,7 +388,7 @@ export default function App() {
           maxSize={isWhiteboardVisible ? 50 : 0}
           className={isWhiteboardVisible ? "" : "hidden"}
         >
-          <Whiteboard
+          <Blackboard
             isVisible={isWhiteboardVisible}
             onToggle={() => setIsWhiteboardVisible(!isWhiteboardVisible)}
             onSendToChat={(imageData) => {

@@ -3,7 +3,7 @@ from typing import Optional
 import json
 import re
 from config import GEMINI_API_KEY
-from models import ManimCodeResponse
+from models import ManimCodeResponse, MindMapNode
 
 class GeminiClient:
     def __init__(self):
@@ -432,3 +432,174 @@ Format your response as a friendly, conversational reply that directly addresses
 
         except Exception as e:
             raise Exception(f"Failed to generate Manim code with narration: {e}")
+
+    def generate_mind_map(self, topic: str, depth: int = 3, max_branches: int = 5) -> list[MindMapNode]:
+        """
+        Generate a mind map structure for a given topic using Gemini API
+        """
+        prompt = self._build_mind_map_prompt(topic, depth, max_branches)
+        
+        try:
+            response = self.model.generate_content(prompt)
+            return self._parse_mind_map_response(response.text, topic)
+        except Exception as e:
+            raise Exception(f"Failed to generate mind map: {str(e)}")
+
+    def _build_mind_map_prompt(self, topic: str, depth: int, max_branches: int) -> str:
+        return f"""
+You are an expert educational content creator who generates mind maps with a main topic and floating suggestions.
+
+Create a mind map for the topic: "{topic}"
+
+Requirements:
+1. Create ONE main topic node that introduces and explains the core concept
+2. Create 4-6 floating suggestion nodes that suggest how to expand the topic
+3. Each node should have a clear, concise title and detailed explanation
+4. Focus on educational value and logical connections
+5. Suggestions should be specific, actionable ways to explore the topic further
+
+Return the response as a JSON array with the following structure:
+[
+  {{
+    "id": "main_topic",
+    "title": "{topic}",
+    "content": "Comprehensive introduction and explanation of {topic}. This should be detailed and educational, covering the key aspects, importance, and basic understanding of the concept.",
+    "level": 0,
+    "parent_id": null,
+    "children": [],
+    "is_main_topic": true,
+    "is_suggestion": false
+  }},
+  {{
+    "id": "suggestion_1",
+    "title": "Suggestion Title",
+    "content": "Detailed suggestion for how to expand or explore this aspect of {topic}. This should be specific and actionable.",
+    "level": 0,
+    "parent_id": null,
+    "children": [],
+    "is_main_topic": false,
+    "is_suggestion": true
+  }},
+  {{
+    "id": "suggestion_2",
+    "title": "Another Suggestion",
+    "content": "Another detailed suggestion for exploring {topic}.",
+    "level": 0,
+    "parent_id": null,
+    "children": [],
+    "is_main_topic": false,
+    "is_suggestion": true
+  }},
+  {{
+    "id": "suggestion_3",
+    "title": "Third Suggestion",
+    "content": "A third suggestion for expanding knowledge of {topic}.",
+    "level": 0,
+    "parent_id": null,
+    "children": [],
+    "is_main_topic": false,
+    "is_suggestion": true
+  }},
+  {{
+    "id": "suggestion_4",
+    "title": "Fourth Suggestion",
+    "content": "A fourth suggestion for exploring {topic}.",
+    "level": 0,
+    "parent_id": null,
+    "children": [],
+    "is_main_topic": false,
+    "is_suggestion": true
+  }}
+]
+
+IMPORTANT: Return exactly this structure with the main topic and 4 suggestions. Do not create additional nodes or change the structure.
+The main topic should be comprehensive and educational.
+Suggestions should be floating nodes that users can accept or reject.
+Focus on creating a learning structure that helps users explore "{topic}" systematically.
+"""
+
+    def _parse_mind_map_response(self, response_text: str, topic: str) -> list[MindMapNode]:
+        try:
+            # Clean the response text
+            cleaned_text = response_text.strip()
+            
+            # Remove markdown code blocks if present
+            if cleaned_text.startswith('```json'):
+                cleaned_text = cleaned_text[7:]
+            if cleaned_text.endswith('```'):
+                cleaned_text = cleaned_text[:-3]
+            
+            # Parse JSON
+            nodes_data = json.loads(cleaned_text)
+            
+            # Convert to MindMapNode objects and add positioning
+            nodes = []
+            for i, node_data in enumerate(nodes_data):
+                # Calculate position based on level and index
+                x, y = self._calculate_node_position(node_data, i, nodes_data)
+                
+                node = MindMapNode(
+                    id=node_data['id'],
+                    title=node_data['title'],
+                    content=node_data['content'],
+                    x=x,
+                    y=y,
+                    level=node_data['level'],
+                    parent_id=node_data.get('parent_id'),
+                    children=node_data.get('children', [])
+                )
+                nodes.append(node)
+            
+            return nodes
+            
+        except json.JSONDecodeError as e:
+            raise Exception(f"Failed to parse mind map JSON: {str(e)}")
+        except Exception as e:
+            raise Exception(f"Failed to process mind map response: {str(e)}")
+
+    def _calculate_node_position(self, node_data: dict, index: int, all_nodes: list) -> tuple[float, float]:
+        """Calculate x, y position for a node based on its type and relationships"""
+        is_main_topic = node_data.get('is_main_topic', False)
+        is_suggestion = node_data.get('is_suggestion', False)
+        
+        if is_main_topic:
+            # Main topic goes in the center
+            return (400.0, 300.0)
+        
+        if is_suggestion:
+            # Suggestions positioned in a clean grid around the main topic
+            center_x, center_y = 400.0, 300.0
+            suggestion_index = index - 1  # Subtract 1 because main topic is index 0
+            
+            # Position suggestions in a 2x2 grid around the main topic
+            if suggestion_index == 0:
+                x, y = center_x - 300, center_y - 150  # Top left
+            elif suggestion_index == 1:
+                x, y = center_x + 50, center_y - 150   # Top right
+            elif suggestion_index == 2:
+                x, y = center_x - 300, center_y + 50   # Bottom left
+            else:
+                x, y = center_x + 50, center_y + 50    # Bottom right
+            
+            return (x, y)
+        
+        # Regular child nodes
+        parent_id = node_data.get('parent_id')
+        if parent_id:
+            # Find parent and position relative to it
+            parent_node = None
+            for n in all_nodes:
+                if n['id'] == parent_id:
+                    parent_node = n
+                    break
+            
+            if parent_node:
+                # Position children to the right of parent
+                siblings = [n for n in all_nodes if n.get('parent_id') == parent_id]
+                sibling_index = siblings.index(node_data)
+                x = 400.0 + 300 + (sibling_index * 50)
+                y = 300.0 + (sibling_index * 100) - 100
+                return (x, y)
+        
+        # Default position
+        return (200.0 + index * 200, 200.0 + index * 150)

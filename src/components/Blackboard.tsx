@@ -21,7 +21,7 @@ interface DrawingStroke {
   id: string;
 }
 
-interface WhiteboardProps {
+interface BlackboardProps {
   isVisible: boolean;
   onToggle: () => void;
   onSendToChat?: (imageData: string) => void;
@@ -29,17 +29,17 @@ interface WhiteboardProps {
 
 const colors = [
   '#FFFFFF', // white
-  '#EF4444', // red
-  '#F97316', // orange
-  '#EAB308', // yellow
-  '#22C55E', // green
-  '#3B82F6', // blue
-  '#8B5CF6', // purple
-  '#EC4899', // pink
+  '#FF6B6B', // red
+  '#FF8E53', // orange
+  '#FFD93D', // yellow
+  '#6BCF7F', // green
+  '#4D96FF', // blue
+  '#9B59B6', // purple
+  '#FF9FF3', // pink
   '#000000', // black
 ];
 
-export function Whiteboard({ isVisible, onToggle, onSendToChat }: WhiteboardProps) {
+export function Blackboard({ isVisible, onToggle, onSendToChat }: BlackboardProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [tool, setTool] = useState<'pen' | 'eraser' | 'rectangle' | 'circle' | 'text'>('pen');
@@ -100,8 +100,8 @@ export function Whiteboard({ isVisible, onToggle, onSendToChat }: WhiteboardProp
     const ctx = canvas?.getContext('2d');
     if (!canvas || !ctx) return;
 
-    // Clear canvas with dark background
-    ctx.fillStyle = '#1F2937'; // gray-800
+    // Clear canvas with blackboard background
+    ctx.fillStyle = '#1a1510'; // dark brown/black
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     // Draw all strokes
@@ -195,10 +195,10 @@ export function Whiteboard({ isVisible, onToggle, onSendToChat }: WhiteboardProp
     }
   };
 
-  const saveWhiteboard = () => {
+  const saveBlackboard = () => {
     // Mock save functionality
-    localStorage.setItem('whiteboard-data', JSON.stringify(strokes));
-    alert('Whiteboard saved! In a full implementation, this would sync with your backend.');
+    localStorage.setItem('blackboard-data', JSON.stringify(strokes));
+    alert('Blackboard saved! In a full implementation, this would sync with your backend.');
   };
 
   const sendToChat = () => {
@@ -207,7 +207,7 @@ export function Whiteboard({ isVisible, onToggle, onSendToChat }: WhiteboardProp
 
     // Check if there's any content on the canvas
     if (strokes.length === 0) {
-      alert('Please draw something on the whiteboard before sending to chat.');
+      alert('Please draw something on the blackboard before sending to chat.');
       return;
     }
 
@@ -218,14 +218,14 @@ export function Whiteboard({ isVisible, onToggle, onSendToChat }: WhiteboardProp
 
   // Load saved data on mount
   useEffect(() => {
-    const saved = localStorage.getItem('whiteboard-data');
+    const saved = localStorage.getItem('blackboard-data');
     if (saved) {
       try {
         const loadedStrokes = JSON.parse(saved);
         setStrokes(loadedStrokes);
         saveToHistory(loadedStrokes);
       } catch (e) {
-        console.error('Failed to load whiteboard data:', e);
+        console.error('Failed to load blackboard data:', e);
       }
     }
   }, []);
@@ -233,9 +233,9 @@ export function Whiteboard({ isVisible, onToggle, onSendToChat }: WhiteboardProp
   if (!isVisible) return null;
 
   return (
-    <div className="h-full bg-gray-900 border-l border-gray-700 flex flex-col">
+    <div className="h-full bg-background border-l border-border flex flex-col">
       {/* Toolbar */}
-      <div className="p-3 border-b border-gray-700 bg-gray-800">
+      <div className="p-3 border-b border-border bg-card">
         <div className="flex items-center gap-2 flex-wrap">
           {/* Drawing Tools */}
           <Button
@@ -269,12 +269,12 @@ export function Whiteboard({ isVisible, onToggle, onSendToChat }: WhiteboardProp
                 />
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-40 p-2 bg-gray-800 border-gray-700">
+            <PopoverContent className="w-40 p-2 bg-card border-border">
               <div className="grid grid-cols-3 gap-1">
                 {colors.map((c) => (
                   <button
                     key={c}
-                    className="w-8 h-8 rounded border-2 border-gray-600 hover:scale-110 transition-transform"
+                    className="w-8 h-8 rounded border-2 border-border hover:scale-110 transition-transform"
                     style={{ backgroundColor: c }}
                     onClick={() => setColor(c)}
                   />
@@ -285,7 +285,7 @@ export function Whiteboard({ isVisible, onToggle, onSendToChat }: WhiteboardProp
 
           {/* Brush Size */}
           <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-400">Size:</span>
+            <span className="text-xs text-muted-foreground">Size:</span>
             <div className="w-20">
               <Slider
                 value={[brushSize]}
@@ -296,7 +296,7 @@ export function Whiteboard({ isVisible, onToggle, onSendToChat }: WhiteboardProp
                 className="w-full"
               />
             </div>
-            <span className="text-xs text-gray-400 w-6">{brushSize}</span>
+            <span className="text-xs text-muted-foreground w-6">{brushSize}</span>
           </div>
 
           <Separator orientation="vertical" className="h-6" />
@@ -325,7 +325,7 @@ export function Whiteboard({ isVisible, onToggle, onSendToChat }: WhiteboardProp
           <Button
             size="sm"
             variant="outline"
-            onClick={saveWhiteboard}
+            onClick={saveBlackboard}
             className="gap-1 text-green-400 hover:text-green-300"
           >
             <Save className="w-4 h-4" />
@@ -335,7 +335,7 @@ export function Whiteboard({ isVisible, onToggle, onSendToChat }: WhiteboardProp
             size="sm"
             variant="outline"
             onClick={clearCanvas}
-            className="gap-1 text-red-400 hover:text-red-300"
+            className="gap-1 text-destructive hover:text-destructive/80"
           >
             <Trash2 className="w-4 h-4" />
           </Button>
@@ -348,7 +348,7 @@ export function Whiteboard({ isVisible, onToggle, onSendToChat }: WhiteboardProp
             variant="default"
             onClick={sendToChat}
             disabled={strokes.length === 0}
-            className="gap-1 bg-blue-600 hover:bg-blue-700 text-white"
+            className="gap-1 bg-primary hover:bg-primary/90 text-primary-foreground"
           >
             <Send className="w-4 h-4" />
             Send to Chat
@@ -369,8 +369,8 @@ export function Whiteboard({ isVisible, onToggle, onSendToChat }: WhiteboardProp
       </div>
 
       {/* Instructions */}
-      <div className="p-2 border-t border-gray-700 bg-gray-800">
-        <p className="text-xs text-gray-400 text-center">
+      <div className="p-2 border-t border-border bg-card">
+        <p className="text-xs text-muted-foreground text-center">
           Draw equations and diagrams. The AI can read your handwriting when implemented.
         </p>
       </div>

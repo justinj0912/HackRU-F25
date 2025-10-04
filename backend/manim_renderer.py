@@ -27,7 +27,7 @@ class ManimRenderer:
                 f.write(manim_code)
             
             try:
-                # Run Manim command
+                # Run Manim command with Windows compatibility
                 cmd = [
                     "manim",
                     str(script_path),
@@ -35,18 +35,26 @@ class ManimRenderer:
                     "--format", "mp4",
                     "--media_dir", str(self.output_dir),
                     "--quality", "l",  # Low quality for speed
-                    "--disable_caching"  # Ensure fresh render
+                    "--disable_caching",  # Ensure fresh render
+                    "--verbose", "INFO"  # Better error reporting
                 ]
+                
+                # Windows-specific: Use shell=True if needed
+                use_shell = os.name == 'nt'
                 
                 result = subprocess.run(
                     cmd,
                     capture_output=True,
                     text=True,
-                    timeout=MAX_VIDEO_DURATION + 60  # Add buffer for processing
+                    timeout=MAX_VIDEO_DURATION + 60,  # Add buffer for processing
+                    shell=use_shell  # Use shell on Windows
                 )
                 
                 if result.returncode != 0:
-                    raise Exception(f"Manim rendering failed: {result.stderr}")
+                    error_msg = f"Manim rendering failed (exit code {result.returncode}):\n"
+                    error_msg += f"STDOUT: {result.stdout}\n"
+                    error_msg += f"STDERR: {result.stderr}"
+                    raise Exception(error_msg)
                 
                 # Find the generated video file
                 video_path = self._find_video_file(scene_name)

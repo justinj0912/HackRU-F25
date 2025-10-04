@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, MessageSquare, Edit2, Trash2, Palette } from 'lucide-react';
+import { Plus, MessageSquare, Edit2, Trash2, Palette, Network, ChevronDown } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { ScrollArea } from './ui/scroll-area';
@@ -10,6 +10,7 @@ export interface Chat {
   id: string;
   title: string;
   color: string;
+  type: 'chat' | 'mindmap';
   messages: Array<{ 
     role: 'user' | 'assistant'; 
     content: string; 
@@ -28,6 +29,7 @@ interface ChatSidebarProps {
   activeChat: string | null;
   onSelectChat: (chatId: string) => void;
   onCreateChat: () => void;
+  onCreateMindMap: () => void;
   onRenameChat: (chatId: string, newTitle: string) => void;
   onDeleteChat: (chatId: string) => void;
   onChangeColor: (chatId: string, color: string) => void;
@@ -52,6 +54,7 @@ export function ChatSidebar({
   activeChat,
   onSelectChat,
   onCreateChat,
+  onCreateMindMap,
   onRenameChat,
   onDeleteChat,
   onChangeColor,
@@ -82,25 +85,39 @@ export function ChatSidebar({
     <div className={`h-full border-r flex flex-col ${
       currentTheme === 'retro'
         ? 'bg-retro-gray border-retro-dark retro-panel'
-        : 'bg-gray-900 border-gray-700'
+        : 'bg-background border-border'
     }`}>
       {/* Header */}
       <div className={`p-2 border-b ${
         currentTheme === 'retro'
           ? 'border-retro-dark'
-          : 'border-gray-700'
+          : 'border-border'
       }`}>
-        <Button
-          onClick={onCreateChat}
-          className={`w-full gap-2 ${
-            currentTheme === 'retro'
-              ? 'retro-button'
-              : 'bg-red-700 hover:bg-red-600 text-white'
-          }`}
-        >
-          <Plus className="w-4 h-4" />
-          New Chat
-        </Button>
+        <div className="space-y-2">
+          <Button
+            onClick={onCreateChat}
+            className={`w-full gap-2 ${
+              currentTheme === 'retro'
+                ? 'retro-button'
+                : 'bg-primary hover:bg-primary/90 text-primary-foreground'
+            }`}
+          >
+            <MessageSquare className="w-4 h-4" />
+            New Chat
+          </Button>
+          
+          <Button
+            onClick={onCreateMindMap}
+            className={`w-full gap-2 ${
+              currentTheme === 'retro'
+                ? 'retro-button'
+                : 'bg-secondary hover:bg-secondary/90 text-secondary-foreground'
+            }`}
+          >
+            <Network className="w-4 h-4" />
+            New Mind Map
+          </Button>
+        </div>
       </div>
 
       {/* Chat List */}
@@ -116,10 +133,10 @@ export function ChatSidebar({
               className={`group p-2 cursor-pointer transition-colors ${
                 currentTheme === 'retro'
                   ? `retro-card ${activeChat === chat.id ? 'active' : ''}`
-                  : `border-gray-700 hover:bg-gray-800 ${
+                  : `border-border hover:bg-card ${
                       activeChat === chat.id
-                        ? 'bg-gray-800 border-red-600'
-                        : 'bg-gray-900'
+                        ? 'bg-card border-primary'
+                        : 'bg-background'
                     }`
               }`}
               onClick={() => onSelectChat(chat.id)}
@@ -145,19 +162,26 @@ export function ChatSidebar({
                       className={`h-6 text-sm ${
                         currentTheme === 'retro'
                           ? 'retro-input'
-                          : 'bg-gray-800 border-gray-600'
+                          : 'bg-card border-border'
                       }`}
                       autoFocus
                       onClick={(e) => e.stopPropagation()}
                     />
                   ) : (
-                    <p className={`text-sm truncate ${
-                      currentTheme === 'retro'
-                        ? (activeChat === chat.id ? 'text-white' : 'text-black')
-                        : 'text-gray-100'
-                    }`}>
-                      {chat.title}
-                    </p>
+                    <div className="flex items-center gap-1">
+                      {chat.type === 'mindmap' ? (
+                        <Network className="w-3 h-3 text-muted-foreground" />
+                      ) : (
+                        <MessageSquare className="w-3 h-3 text-muted-foreground" />
+                      )}
+                      <p className={`text-sm truncate ${
+                        currentTheme === 'retro'
+                          ? (activeChat === chat.id ? 'text-white' : 'text-black')
+                          : 'text-foreground'
+                      }`}>
+                        {chat.title}
+                      </p>
+                    </div>
                   )}
                 </div>
 
@@ -171,27 +195,27 @@ export function ChatSidebar({
                         className={`h-6 w-6 p-0 ${
                           currentTheme === 'retro'
                             ? 'retro-button !min-h-[16px] !p-0'
-                            : 'hover:bg-gray-700'
+                            : 'hover:bg-muted'
                         }`}
                         onClick={(e) => e.stopPropagation()}
                       >
                         <Palette className={`w-3 h-3 ${
                           currentTheme === 'retro' 
                             ? 'text-black' 
-                            : 'text-gray-400'
+                            : 'text-muted-foreground'
                         }`} />
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className={`w-40 p-2 ${
                       currentTheme === 'retro'
                         ? 'bg-retro-gray border-retro-dark retro-panel'
-                        : 'bg-gray-800 border-gray-700'
+                        : 'bg-card border-border'
                     }`}>
                       <div className="grid grid-cols-5 gap-1">
                         {colors.map((color) => (
                           <button
                             key={color}
-                            className="w-6 h-6 rounded-full border border-gray-600 hover:scale-110 transition-transform"
+                            className="w-6 h-6 rounded-full border border-border hover:scale-110 transition-transform"
                             style={{ backgroundColor: color }}
                             onClick={() => {
                               onChangeColor(chat.id, color);
@@ -218,7 +242,7 @@ export function ChatSidebar({
                     <Edit2 className={`w-3 h-3 ${
                       currentTheme === 'retro' 
                         ? 'text-black' 
-                        : 'text-gray-400'
+                        : 'text-muted-foreground'
                     }`} />
                   </Button>
 
@@ -238,7 +262,7 @@ export function ChatSidebar({
                     <Trash2 className={`w-3 h-3 ${
                       currentTheme === 'retro' 
                         ? 'text-black' 
-                        : 'text-gray-400'
+                        : 'text-muted-foreground'
                     }`} />
                   </Button>
                 </div>
@@ -248,8 +272,8 @@ export function ChatSidebar({
               {chat.messages.length > 0 && (
                 <p className={`text-xs mt-1 truncate ${
                   currentTheme === 'retro'
-                    ? (activeChat === chat.id ? 'text-gray-200' : 'text-gray-600')
-                    : 'text-gray-500'
+                    ? (activeChat === chat.id ? 'text-foreground' : 'text-muted-foreground')
+                    : 'text-muted-foreground'
                 }`}>
                   {chat.messages[chat.messages.length - 1].content}
                 </p>
@@ -261,7 +285,7 @@ export function ChatSidebar({
             <div className={`text-center py-8 ${
               currentTheme === 'retro' 
                 ? 'text-black' 
-                : 'text-gray-500'
+                : 'text-muted-foreground'
             }`}>
               <MessageSquare className="w-12 h-12 mx-auto mb-2 opacity-50" />
               <p>No chats yet</p>

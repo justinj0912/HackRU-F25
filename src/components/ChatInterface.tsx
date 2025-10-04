@@ -384,14 +384,14 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
           ? 'bg-retro-gray' 
           : currentTheme === 'steampunk'
           ? 'bg-steam-leather'
-          : 'bg-gray-800'
+          : 'bg-card'
       }`}>
         <div className={`text-center ${
           currentTheme === 'retro' 
             ? 'text-black' 
             : currentTheme === 'steampunk'
             ? 'text-steam-cream'
-            : 'text-gray-400'
+            : 'text-muted-foreground'
         }`}>
           <Bot className="w-16 h-16 mx-auto mb-4 opacity-50" />
           <h3 className="text-lg mb-2">Cognify Ready</h3>
@@ -415,7 +415,7 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
           ? 'border-retro-dark bg-retro-gray retro-titlebar'
           : currentTheme === 'steampunk'
           ? 'steam-titlebar steam-rivets'
-          : 'border-gray-700 bg-gray-900'
+          : 'border-border bg-background'
       }`}>
         <div className="flex items-center gap-3">
           <div
@@ -444,7 +444,7 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
                 ? 'retro-button !text-xs !p-1'
                 : currentTheme === 'steampunk'
                 ? 'steam-button !text-xs !p-1'
-                : 'text-gray-400 border-gray-600'
+                : 'text-muted-foreground border-border'
             }
           >
             {activeChat.messages.length} messages
@@ -493,7 +493,7 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
                         ? 'steam-card !bg-steam-copper'
                         : 'steam-card !bg-steam-brass !text-steam-charcoal')
                     : (message.role === 'assistant'
-                        ? 'bg-gray-700 border-gray-600'
+                        ? 'bg-muted border-border'
                         : 'bg-red-700 border-red-600')
                 }`}
               >
@@ -514,12 +514,12 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
                         li: ({ children }) => <li className="text-sm text-white">{children}</li>,
                         strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
                         em: ({ children }) => <em className="italic text-white">{children}</em>,
-                        code: ({ children }) => <code className="bg-gray-700 px-1 py-0.5 rounded text-xs font-mono text-white">{children}</code>,
-                        pre: ({ children }) => <pre className="bg-gray-800 p-2 rounded text-xs font-mono overflow-x-auto mb-2 text-white">{children}</pre>,
+                        code: ({ children }) => <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono text-foreground">{children}</code>,
+                        pre: ({ children }) => <pre className="bg-card p-2 rounded text-xs font-mono overflow-x-auto mb-2 text-foreground">{children}</pre>,
                         h1: ({ children }) => <h1 className="text-lg font-bold mb-2 text-white">{children}</h1>,
                         h2: ({ children }) => <h2 className="text-base font-bold mb-2 text-white">{children}</h2>,
                         h3: ({ children }) => <h3 className="text-sm font-bold mb-1 text-white">{children}</h3>,
-                        blockquote: ({ children }) => <blockquote className="border-l-4 border-gray-500 pl-3 italic mb-2 text-white">{children}</blockquote>,
+                        blockquote: ({ children }) => <blockquote className="border-l-4 border-border pl-3 italic mb-2 text-foreground">{children}</blockquote>,
                       }}
                     >
                       {message.content}
@@ -548,7 +548,7 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
                           handleTextToSpeech(message.content, `msg-${index}`);
                         }
                       }}
-                      className="h-8 w-8 p-0 hover:bg-gray-600"
+                      className="h-8 w-8 p-0 hover:bg-muted"
                     >
                       {playingAudio === `msg-${index}` ? (
                         <VolumeX className="h-4 w-4 text-white" />
@@ -560,7 +560,7 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
                 )}
                 
         {message.role === 'assistant' && message.content.startsWith('/videos/') && (
-          <div className="mt-3 pt-3 border-t border-gray-600">
+          <div className="mt-3 pt-3 border-t border-border">
             <video 
               controls 
               className="w-full max-w-sm sm:max-w-md md:max-w-lg lg:max-w-xl xl:max-w-2xl rounded-lg shadow-lg"
@@ -577,10 +577,10 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
                 
                 <div className={`text-xs mt-2 ${
                   currentTheme === 'retro'
-                    ? (message.role === 'assistant' ? 'text-gray-600' : 'text-gray-200')
+                    ? (message.role === 'assistant' ? 'text-muted-foreground' : 'text-foreground')
                     : currentTheme === 'steampunk'
                     ? (message.role === 'assistant' ? 'text-steam-cream opacity-70' : 'text-steam-charcoal opacity-70')
-                    : 'text-gray-400'
+                    : 'text-muted-foreground'
                 }`}>
                   {message.timestamp.toLocaleTimeString()}
                 </div>
@@ -592,7 +592,7 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
                     ? 'bg-retro-green border-2 border-retro-dark'
                     : currentTheme === 'steampunk'
                     ? 'steam-metal-frame bg-steam-copper'
-                    : 'bg-gray-600 rounded-full'
+                    : 'bg-muted rounded-full'
                 }`}>
                   <User className="w-4 h-4 text-white" />
                 </div>
@@ -619,7 +619,7 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
                   ? 'retro-card !bg-retro-light'
                   : currentTheme === 'steampunk'
                   ? 'steam-card !bg-steam-copper'
-                  : 'bg-gray-700 border-gray-600'
+                  : 'bg-muted border-border'
               }`}>
                 <div className={`prose prose-sm max-w-none ${
                   currentTheme === 'retro'
@@ -670,10 +670,10 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
               <Card className={`p-3 ${
                 currentTheme === 'retro' 
                   ? 'retro-card !bg-retro-light' 
-                  : 'bg-gray-700 border-gray-600'
+                  : 'bg-muted border-border'
               }`}>
                 <div className={`flex items-center gap-2 ${
-                  currentTheme === 'retro' ? 'text-black' : 'text-gray-400'
+                  currentTheme === 'retro' ? 'text-black' : 'text-muted-foreground'
                 }`}>
                   <Loader2 className="w-4 h-4 animate-spin" />
                   AI is thinking...
@@ -690,7 +690,7 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
       <div className={`p-3 border-t ${
         currentTheme === 'retro' 
           ? 'border-retro-dark bg-retro-gray retro-panel' 
-          : 'border-gray-700 bg-gray-900'
+          : 'border-border bg-background'
       }`}>
         <div className="flex gap-2">
           <Input
@@ -702,7 +702,7 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
             className={`flex-1 ${
               currentTheme === 'retro' 
                 ? 'retro-input' 
-                : 'bg-gray-800 border-gray-600 text-white placeholder-gray-400'
+                : 'bg-card border-border text-foreground placeholder-muted-foreground'
             }`}
             disabled={isLoading}
           />
@@ -725,7 +725,7 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
             className={`text-xs ${
               videoMode 
                 ? 'bg-red-600 hover:bg-red-500 text-white' 
-                : 'border-gray-600 text-gray-400 hover:text-white hover:border-gray-500'
+                : 'border-border text-muted-foreground hover:text-foreground hover:border-primary'
             }`}
             onClick={() => setVideoMode(!videoMode)}
           >
