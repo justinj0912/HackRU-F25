@@ -29,7 +29,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`dark ${cinzel.variable} ${courierPrime.variable}`}>
-      <body>{children}</body>
+      {/* suppressHydrationWarning prevents React from erroring when browser extensions
+          add attributes to the server-rendered <body> before hydration */}
+      <body suppressHydrationWarning>{children}</body>
     </html>
   )
 }

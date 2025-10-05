@@ -50,10 +50,12 @@
       "devDependencies": {
             "@types/node": "^20.10.0",
             "@vitejs/plugin-react-swc": "^3.10.2",
-            "vite": "6.3.5"
+            "vite": "^6.3.6"
       },
       "scripts": {
-            "dev": "vite",
+            "dev": "npm run dev:open",
+            "dev:open": "npx concurrently \"cd frontend/homepage && npx next dev -p 3000\" \"npx wait-on http://localhost:3000 && powershell -Command Start-Process 'http://localhost:3000'\"",
+            "dev:vite": "vite",
             "build": "vite build"
       }
 }
