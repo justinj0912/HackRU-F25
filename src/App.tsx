@@ -107,6 +107,11 @@ export default function App() {
     return chat?.conceptMapNodes || [];
   }, [chats]);
 
+  // Create a load function for the current chat
+  const getLoadConceptMapFunction = useCallback((chatId: string) => {
+    return () => loadConceptMap(chatId);
+  }, [loadConceptMap]);
+
 
   const sendMessage = useCallback((chatId: string, message: string) => {
     const newMessage = {
@@ -231,7 +236,7 @@ export default function App() {
               {currentChat?.type === 'conceptmap' ? (
                 <ConceptMap 
                   onSave={currentChat ? (nodes) => saveConceptMap(currentChat.id, nodes) : undefined}
-                  onLoad={currentChat ? () => loadConceptMap(currentChat.id) : undefined}
+                  onLoad={currentChat ? getLoadConceptMapFunction(currentChat.id) : undefined}
                 />
               ) : (
                 <ChatInterface

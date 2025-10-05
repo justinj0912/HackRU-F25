@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { ZoomIn, ZoomOut, RotateCcw, Plus, Loader2 } from 'lucide-react';
+import { ZoomIn, ZoomOut, RotateCcw, Plus, Loader2, Trash2 } from 'lucide-react';
 import { Button } from './ui/button';
 
 interface ConceptNode {
@@ -21,7 +21,6 @@ interface ConceptMapProps {
 }
 
 export function ConceptMap({ onSave, onLoad }: ConceptMapProps) {
-  console.log('🟦 ConceptMap component mounted');
   const [nodes, setNodes] = useState<ConceptNode[]>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [scale, setScale] = useState(1);
@@ -37,6 +36,7 @@ export function ConceptMap({ onSave, onLoad }: ConceptMapProps) {
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null);
   const [showAddNodeInput, setShowAddNodeInput] = useState<string | null>(null);
   const [newNodeTitle, setNewNodeTitle] = useState('');
+  const [lockedPanOffset, setLockedPanOffset] = useState<{ x: number; y: number } | null>(null);
   
   // Load saved nodes on mount
   useEffect(() => {
@@ -45,20 +45,10 @@ export function ConceptMap({ onSave, onLoad }: ConceptMapProps) {
       if (savedNodes && savedNodes.length > 0) {
         setNodes(savedNodes);
         setShowTopicInput(false);
-        console.log('🟦 Loaded saved nodes:', savedNodes.length);
       }
     }
   }, [onLoad]);
 
-  // Debug state changes
-  useEffect(() => {
-    console.log('🟦 State changed:', {
-      isDragging,
-      draggedNodeId,
-      isPanning,
-      nodesCount: nodes.length
-    });
-  }, [isDragging, draggedNodeId, isPanning, nodes]);
   
   const canvasRef = useRef<HTMLDivElement>(null);
 
@@ -209,6 +199,36 @@ export function ConceptMap({ onSave, onLoad }: ConceptMapProps) {
     }
   };
 
+  // Delete node and all its descendants
+  const handleDeleteNode = (nodeId: string) => {
+    const deleteNodeAndChildren = (id: string): string[] => {
+      const node = nodes.find(n => n.id === id);
+      if (!node) return [];
+      
+      let toDelete = [id];
+      for (const childId of node.children) {
+        toDelete = toDelete.concat(deleteNodeAndChildren(childId));
+      }
+      return toDelete;
+    };
+
+    const nodesToDelete = deleteNodeAndChildren(nodeId);
+    const updatedNodes = nodes.filter(node => !nodesToDelete.includes(node.id));
+    
+    // Update parent nodes to remove deleted children
+    const finalNodes = updatedNodes.map(node => ({
+      ...node,
+      children: node.children.filter(childId => !nodesToDelete.includes(childId))
+    }));
+
+    setNodes(finalNodes);
+    
+    // Save the updated nodes
+    if (onSave) {
+      onSave(finalNodes);
+    }
+  };
+
   // Add student-created node
   const handleAddStudentNode = async (parentNodeId: string, title: string) => {
     if (!title.trim()) return;
@@ -228,6 +248,16 @@ export function ConceptMap({ onSave, onLoad }: ConceptMapProps) {
       const summaryData = await summaryResponse.json();
       const summary = summaryData.summary || '';
 
+      // Generate suggested subtopics for the new custom node
+      const subtopicsResponse = await fetch('http://localhost:8000/generate-subtopics', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic: title.trim() })
+      });
+      
+      const subtopicsData = await subtopicsResponse.json();
+      const subtopics = subtopicsData.subtopics || [];
+
       // Create new student node
       const studentNode: ConceptNode = {
         id: `student-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -242,21 +272,44 @@ export function ConceptMap({ onSave, onLoad }: ConceptMapProps) {
         summary
       };
 
+      // Create suggested subtopic nodes
+      const suggestedNodes: ConceptNode[] = subtopics.map((subtopic: string, index: number) => ({
+        id: `suggested-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`,
+        title: subtopic,
+        x: studentNode.x + (Math.random() - 0.5) * 300, // Random position around the student node
+        y: studentNode.y + 150 + Math.random() * 100, // Below student node
+        expanded: false,
+        parentId: studentNode.id,
+        children: [],
+        importance: 'low',
+        color: '#10B981', // Green color for suggested nodes
+        summary: ''
+      }));
+
       // Update parent node to include new child
       const updatedParentNode = {
         ...parentNode,
         children: [...parentNode.children, studentNode.id]
       };
 
+      // Update student node to include suggested children
+      const updatedStudentNode = {
+        ...studentNode,
+        children: suggestedNodes.map(node => node.id)
+      };
+
+      // Add all nodes to the state
       setNodes(prev => [
         ...prev.filter(n => n.id !== parentNodeId),
         updatedParentNode,
-        studentNode
+        updatedStudentNode,
+        ...suggestedNodes
       ]);
 
       // Reset input state
       setShowAddNodeInput(null);
       setNewNodeTitle('');
+      setLockedPanOffset(null);
     } catch (error) {
       console.error('Failed to add student node:', error);
     } finally {
@@ -363,23 +416,10 @@ export function ConceptMap({ onSave, onLoad }: ConceptMapProps) {
     e.preventDefault();
     const delta = e.deltaY > 0 ? 0.9 : 1.1;
     const newScale = Math.max(0.1, Math.min(5, scale * delta));
-    console.log('Wheel zoom:', {
-      deltaY: e.deltaY,
-      delta,
-      oldScale: scale,
-      newScale
-    });
     setScale(newScale);
   }, [scale]);
 
       const handleMouseDown = (e: React.MouseEvent) => {
-        console.log('🟤 Canvas mouse down:', {
-          currentTarget: e.currentTarget,
-          target: e.target,
-          isCanvas: e.currentTarget === e.target,
-          clientX: e.clientX,
-          clientY: e.clientY
-        });
         
         // Check if clicking on empty canvas area (not on a node)
         // Allow clicks on SVG (connection lines) to trigger panning
@@ -395,34 +435,18 @@ export function ConceptMap({ onSave, onLoad }: ConceptMapProps) {
           target?.classList.contains('canvas-background') ||
           target?.closest('.canvas-background');
         
-        console.log('🟤 Canvas click analysis:', {
-          isNodeClick,
-          isCanvasClick,
-          targetTagName: target?.tagName,
-          targetClassName: target?.className,
-          targetParent: target?.parentElement?.className
-        });
         
-        // Only start panning if it's a canvas click AND not a node click
-        if (isCanvasClick && !isNodeClick) {
-          console.log('🟤 Starting pan - canvas clicked (not on node)');
+        // Only start panning if it's a canvas click AND not a node click AND canvas is not locked
+        if (isCanvasClick && !isNodeClick && !lockedPanOffset) {
           setIsPanning(true);
           setPanStart({ x: e.clientX, y: e.clientY });
           setLastPanOffset({ x: panOffset.x, y: panOffset.y });
           setSelectedNodeId(null);
         } else {
-          console.log('🟤 Canvas not starting pan - node click detected or not canvas area');
         }
       };
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
-    console.log('🔵 Global mouse move:', {
-      isPanning,
-      isDragging,
-      draggedNodeId,
-      clientX: e.clientX,
-      clientY: e.clientY
-    });
     
     if (isPanning) {
       const deltaX = (e.clientX - panStart.x) / scale;
@@ -431,47 +455,23 @@ export function ConceptMap({ onSave, onLoad }: ConceptMapProps) {
         x: lastPanOffset.x + deltaX,
         y: lastPanOffset.y + deltaY,
       };
-      console.log('🔵 Panning:', {
-        deltaX,
-        deltaY,
-        scale,
-        lastPanOffset,
-        newOffset,
-        clientX: e.clientX,
-        clientY: e.clientY,
-        panStart
-      });
       setPanOffset(newOffset);
     } else if (isDragging) {
-      console.log('🔵 Node dragging - calling handleNodeMouseMove');
       handleNodeMouseMove(e);
     } else {
-      console.log('🔵 No action - neither panning nor dragging');
     }
   }, [isPanning, panStart, lastPanOffset, scale, isDragging, draggedNodeId, handleNodeMouseMove]);
 
   const handleMouseUp = useCallback(() => {
-    console.log('🟣 Global mouse up:', {
-      wasPanning: isPanning,
-      wasDragging: isDragging,
-      draggedNodeId
-    });
     setIsPanning(false);
     handleNodeMouseUp();
-    console.log('🟣 Global mouse up completed');
   }, [handleNodeMouseUp, isPanning, isDragging, draggedNodeId]);
 
   useEffect(() => {
-    console.log('⚪ Setting up event listeners:', {
-      handleMouseMove: !!handleMouseMove,
-      handleMouseUp: !!handleMouseUp,
-      nodesCount: nodes.length
-    });
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
 
     return () => {
-      console.log('⚪ Cleaning up event listeners');
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
@@ -570,7 +570,7 @@ export function ConceptMap({ onSave, onLoad }: ConceptMapProps) {
       {/* Canvas */}
       <div className="flex-1 relative overflow-hidden">
         {showTopicInput && (
-          <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center" style={{ top: '60px' }}>
             <div className="bg-card border border-border rounded-lg p-6 max-w-md w-full mx-4">
               <h3 className="text-lg font-semibold text-foreground mb-4">
                 Create Concept Map
@@ -640,6 +640,68 @@ export function ConceptMap({ onSave, onLoad }: ConceptMapProps) {
             transformOrigin: '0 0'
           }}
         >
+          {/* Student node input dialog */}
+          {showAddNodeInput && (
+            <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center" style={{ top: '60px', zIndex: 9999 }}>
+              <div className="bg-card border border-border rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl" style={{ zIndex: 10000 }}>
+                <h3 className="text-lg font-semibold text-foreground mb-4">
+                  Add Your Own Topic
+                </h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Enter a topic you'd like to add to this concept map. It will get a summary and suggested subtopics automatically.
+                </p>
+                <div className="space-y-4">
+                  <input
+                    type="text"
+                    value={newNodeTitle}
+                    onChange={(e) => setNewNodeTitle(e.target.value)}
+                    placeholder="e.g., My own idea, Additional concept..."
+                    className="w-full px-3 py-2 bg-input border border-border rounded-md text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && newNodeTitle.trim()) {
+                        handleAddStudentNode(showAddNodeInput, newNodeTitle.trim());
+                      }
+                      if (e.key === 'Escape') {
+                        setShowAddNodeInput(null);
+                        setNewNodeTitle('');
+                        setLockedPanOffset(null);
+                      }
+                    }}
+                    autoFocus
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => handleAddStudentNode(showAddNodeInput, newNodeTitle)}
+                      disabled={!newNodeTitle.trim() || isGenerating}
+                      className="flex-1"
+                    >
+                      {isGenerating ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Adding...
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="w-4 h-4 mr-2" />
+                          Add Topic
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setShowAddNodeInput(null);
+                        setNewNodeTitle('');
+                        setLockedPanOffset(null);
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
           {/* SVG for connections */}
           <svg
             className="absolute inset-0 w-full h-full pointer-events-none"
@@ -662,30 +724,13 @@ export function ConceptMap({ onSave, onLoad }: ConceptMapProps) {
                 transform: 'translate(-50%, -50%)',
               }}
               onMouseDown={(e) => {
-                console.log('🟠 Node wrapper mousedown:', {
-                  nodeId: node.id,
-                  target: e.target,
-                  targetTagName: (e.target as HTMLElement)?.tagName,
-                  targetClassName: (e.target as HTMLElement)?.className,
-                  clientX: e.clientX,
-                  clientY: e.clientY
-                });
                 handleNodeMouseDown(e, node.id);
               }}
               onClick={(e) => {
                 e.stopPropagation();
-                console.log('🟠 Node wrapper click:', {
-                  nodeId: node.id,
-                  target: e.target,
-                  targetTagName: (e.target as HTMLElement)?.tagName,
-                  targetClassName: (e.target as HTMLElement)?.className,
-                  isDragging,
-                  draggedNodeId
-                });
                 // Only expand if clicking on the expand button, not the whole node
                 if (e.target instanceof HTMLElement && e.target.closest('.expand-button')) {
                   if (!node.expanded && !isDragging) {
-                    console.log('🟠 Expanding node:', node.id);
                     handleExpandNode(node.id);
                   }
                 }
@@ -728,11 +773,9 @@ export function ConceptMap({ onSave, onLoad }: ConceptMapProps) {
                         style={{ color: node.color || '#3B82F6' }}
                         onMouseDown={(e) => {
                           e.stopPropagation();
-                          console.log('🟣 Expand button mousedown:', node.id);
                         }}
                         onClick={(e) => {
                           e.stopPropagation();
-                          console.log('🟣 Expand button click:', node.id);
                           handleExpandNode(node.id);
                         }}
                       >
@@ -741,85 +784,48 @@ export function ConceptMap({ onSave, onLoad }: ConceptMapProps) {
                     </div>
                   )}
                 </div>
-                
-                {/* Add student node button */}
-                <button
-                  className="absolute -bottom-2 -right-2 w-6 h-6 bg-orange-500 hover:bg-orange-600 text-white rounded-full text-xs font-bold flex items-center justify-center shadow-lg transition-colors"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowAddNodeInput(node.id);
-                    setNewNodeTitle('');
-                  }}
-                  title="Add your own topic"
-                >
-                  +
-                </button>
               </div>
+              
+              {/* Add student node button */}
+              <button
+                className="absolute w-8 h-8 bg-orange-500 hover:bg-orange-600 text-white rounded-full text-sm font-bold flex items-center justify-center shadow-lg transition-colors z-50 border-2 border-white"
+                style={{
+                  right: '-16px',
+                  bottom: '-16px'
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setLockedPanOffset({ x: panOffset.x, y: panOffset.y });
+                  setShowAddNodeInput(node.id);
+                  setNewNodeTitle('');
+                }}
+                title="Add your own topic"
+              >
+                +
+              </button>
+              
+              {/* Delete node button */}
+              <button
+                className="absolute w-8 h-8 bg-red-500 hover:bg-red-600 text-white rounded-full text-xs font-bold flex items-center justify-center shadow-lg transition-colors z-50 border-2 border-white"
+                style={{
+                  right: '-16px',
+                  top: '-16px'
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (window.confirm(`Are you sure you want to delete "${node.title}" and all its subtopics?`)) {
+                    handleDeleteNode(node.id);
+                  }
+                }}
+                title="Delete this topic and all subtopics"
+              >
+                <Trash2 className="w-3 h-3" />
+              </button>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Student node input dialog */}
-      {showAddNodeInput && (
-        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center">
-          <div className="bg-card border border-border rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold text-foreground mb-4">
-              Add Your Own Topic
-            </h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              Enter a topic you'd like to add to this concept map. It will get a summary automatically.
-            </p>
-            <div className="space-y-4">
-              <input
-                type="text"
-                value={newNodeTitle}
-                onChange={(e) => setNewNodeTitle(e.target.value)}
-                placeholder="e.g., My own idea, Additional concept..."
-                className="w-full px-3 py-2 bg-input border border-border rounded-md text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && newNodeTitle.trim()) {
-                    handleAddStudentNode(showAddNodeInput, newNodeTitle.trim());
-                  }
-                  if (e.key === 'Escape') {
-                    setShowAddNodeInput(null);
-                    setNewNodeTitle('');
-                  }
-                }}
-                autoFocus
-              />
-              <div className="flex gap-2">
-                <Button
-                  onClick={() => handleAddStudentNode(showAddNodeInput, newNodeTitle)}
-                  disabled={!newNodeTitle.trim() || isGenerating}
-                  className="flex-1"
-                >
-                  {isGenerating ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Adding...
-                    </>
-                  ) : (
-                    <>
-                      <Plus className="w-4 h-4 mr-2" />
-                      Add Topic
-                    </>
-                  )}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setShowAddNodeInput(null);
-                    setNewNodeTitle('');
-                  }}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
           {/* Instructions */}
           <div className="p-2 border-t border-primary bg-gradient-to-b from-card to-background">

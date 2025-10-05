@@ -4,10 +4,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Gemini API Configuration
-GEMINI_API_KEY = "AIzaSyAUjVQ5_y8R7tynxqe9DBV9WqMLwmaAOZE"
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "AIzaSyAUjVQ5_y8R7tynxqe9DBV9WqMLwmaAOZE")
 
 # ElevenLabs API Configuration
-ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "your_elevenlabs_api_key_here")
+ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "sk_c1a3a4144f186df1c8b35d1a664ddf083d3582010edea863")
 
 # Manim Configuration
 MANIM_OUTPUT_DIR = os.getenv("MANIM_OUTPUT_DIR", "./output")

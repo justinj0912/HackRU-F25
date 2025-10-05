@@ -10,7 +10,7 @@ from difflib import SequenceMatcher
 class ElevenLabsClient:
     def __init__(self):
         """Initialize ElevenLabs client"""
-        set_api_key("sk_c1a3a4144f186df1c8b35d1a664ddf083d3582010edea863")
+        set_api_key(ELEVENLABS_API_KEY)
         self.output_dir = Path("output/audio")
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.cache = {}  # Simple in-memory cache
