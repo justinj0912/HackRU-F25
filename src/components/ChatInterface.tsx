@@ -33,8 +33,6 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [videoMode, setVideoMode] = useState(false);
-  const [streamingMessage, setStreamingMessage] = useState<string>('');
-  const [isStreaming, setIsStreaming] = useState(false);
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -169,10 +167,7 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
     } else {
       // Cognify response with ELI5 approach when video mode is disabled
       try {
-        setIsStreaming(true);
-        setStreamingMessage('');
-
-        const response = await fetch('http://localhost:8000/tutor-response-stream', {
+        const response = await fetch('http://localhost:8000/tutor-response', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -185,35 +180,11 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
         });
 
         if (response.ok) {
-          const reader = response.body?.getReader();
-          const decoder = new TextDecoder();
-          let accumulatedText = '';
-
-          if (reader) {
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
-
-              const chunk = decoder.decode(value);
-              const lines = chunk.split('\n');
-              
-              for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                  const text = line.slice(6);
-                  if (text.trim()) {
-                    accumulatedText += text;
-                    setStreamingMessage(accumulatedText);
-                    // Add a small delay to make streaming more readable
-                    await new Promise(resolve => setTimeout(resolve, 50));
-                  }
-                }
-              }
-            }
-          }
-
-          // Add the final message to chat
-          if (onAddAssistantMessage && accumulatedText) {
-            onAddAssistantMessage(activeChat.id, accumulatedText);
+          const data = await response.json();
+          
+          // Add the AI response to chat
+          if (onAddAssistantMessage && data.explanation) {
+            onAddAssistantMessage(activeChat.id, data.explanation);
           }
         } else {
           // Fallback to simple ELI5 response
@@ -233,12 +204,9 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
       } catch (error) {
         console.error('Error getting tutor response:', error);
         // Fallback to simple ELI5 response
-      if (onAddAssistantMessage) {
+        if (onAddAssistantMessage) {
           onAddAssistantMessage(activeChat.id, `Let me explain "${userMessage}" in simple terms! This is a great question that many students ask.`);
         }
-      } finally {
-        setIsStreaming(false);
-        setStreamingMessage('');
       }
     }
     
@@ -622,58 +590,7 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
             );
           })}
 
-          {/* Streaming message display */}
-          {isStreaming && streamingMessage && (
-            <div className="flex gap-3 justify-start">
-              <div className={`w-8 h-8 flex items-center justify-center flex-shrink-0 ${
-                currentTheme === 'steampunk'
-                  ? 'steam-metal-frame bg-steam-brass'
-                  : 'bg-red-700 rounded-full'
-              }`}>
-                <Bot className="w-4 h-4 text-white" />
-              </div>
-              
-              <Card className={`max-w-[80%] p-3 ${
-                currentTheme === 'steampunk'
-                  ? 'steam-card !bg-steam-copper'
-                  : 'bg-muted border-border'
-              }`}>
-                <div className={`prose prose-sm max-w-none ${
-                  currentTheme === 'steampunk'
-                    ? 'prose-steam'
-                    : 'prose-invert'
-                }`}>
-                  <ReactMarkdown
-                    components={{
-                      p: ({ children }) => <p className="mb-2 last:mb-0 text-white">{children}</p>,
-                      ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-1 text-white">{children}</ul>,
-                      ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-1 text-white">{children}</ol>,
-                      li: ({ children }) => <li className="text-sm text-white">{children}</li>,
-                      strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
-                      em: ({ children }) => <em className="italic text-white">{children}</em>,
-                      code: ({ children }) => <code className="bg-gray-700 px-1 py-0.5 rounded text-xs font-mono text-white">{children}</code>,
-                      pre: ({ children }) => <pre className="bg-gray-800 p-2 rounded text-xs font-mono overflow-x-auto mb-2 text-white">{children}</pre>,
-                      h1: ({ children }) => <h1 className="text-lg font-bold mb-2 text-white">{children}</h1>,
-                      h2: ({ children }) => <h2 className="text-base font-bold mb-2 text-white">{children}</h2>,
-                      h3: ({ children }) => <h3 className="text-sm font-bold mb-1 text-white">{children}</h3>,
-                      blockquote: ({ children }) => <blockquote className="border-l-4 border-gray-500 pl-3 italic mb-2 text-white">{children}</blockquote>,
-                    }}
-                  >
-                    {streamingMessage}
-                  </ReactMarkdown>
-                </div>
-                <div className="flex items-center mt-2">
-                  <div className="flex space-x-1">
-                    <div className="w-2 h-2 bg-white rounded-full animate-bounce"></div>
-                    <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                    <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                  </div>
-                </div>
-              </Card>
-            </div>
-          )}
-
-          {isLoading && !isStreaming && (
+          {isLoading && (
             <div className="flex gap-3 justify-start">
               <div className="w-8 h-8 flex items-center justify-center flex-shrink-0 bg-red-700 rounded-full">
                 <Bot className="w-4 h-4 text-white" />

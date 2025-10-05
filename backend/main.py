@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 from datetime import datetime
@@ -156,29 +156,6 @@ async def validate_code(request: dict):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/tutor-response-stream")
-async def tutor_response_stream(request: QuestionRequest):
-    """
-    Get streaming AI tutor response
-    """
-    def generate():
-        try:
-            for chunk in gemini_client.generate_tutor_response_stream(
-                request.question, 
-                request.subject
-            ):
-                yield f"data: {chunk}\n\n"
-        except Exception as e:
-            yield f"data: Error: {str(e)}\n\n"
-    
-    return StreamingResponse(
-        generate(),
-        media_type="text/plain",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-        }
-    )
 
 @app.post("/analyze-image", response_model=ImageAnalysisResponse)
 async def analyze_image(request: ImageAnalysisRequest):

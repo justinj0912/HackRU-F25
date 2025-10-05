@@ -163,44 +163,6 @@ IMPORTANT: Format your response using proper markdown syntax. Use `-` for bullet
         except Exception as e:
             raise Exception(f"Failed to generate tutor response: {e}")
 
-    def generate_tutor_response_stream(self, question: str, subject: str = None):
-        """
-        Generate streaming tutor response with clear, organized bullet points
-        """
-        prompt = f"""
-You are a knowledgeable, patient AI tutor. Your goal is to provide clear, organized explanations that help students understand concepts efficiently.
-
-User Message: "{question}"
-
-Please provide a well-structured response using proper markdown formatting with bullet points and clear organization.
-
-Guidelines:
-1. Always respond directly to what the user said
-2. Use clear, accessible language
-3. Use markdown formatting for structure:
-   - Use `-` for bullet points
-   - Use `**bold**` for emphasis on key terms
-   - Use `*italic*` for important concepts
-   - Use `##` for section headers when needed
-4. Organize information into logical bullet points
-5. Keep each bullet point concise but informative
-6. Use sub-bullets (indented with spaces) when breaking down complex ideas
-7. Include key examples and analogies where helpful
-8. Be encouraging and supportive
-9. If it's a greeting, be warm and ask what they'd like to learn about
-10. If it's a question, provide a clear, organized explanation
-11. Keep the overall response focused and digestible
-
-IMPORTANT: Format your response using proper markdown syntax. Use `-` for bullet points, `**text**` for bold, and proper indentation for sub-bullets.
-"""
-        
-        try:
-            response = self.model.generate_content(prompt, stream=True)
-            for chunk in response:
-                if chunk.text:
-                    yield chunk.text
-        except Exception as e:
-            yield f"Error: {str(e)}"
 
     def analyze_image(self, image_data: str, question: str = None) -> dict:
         """
