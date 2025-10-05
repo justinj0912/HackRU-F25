@@ -1,6 +1,6 @@
 # AI Tutor Website - HackRU F25
 
-LIVE ON cognifytutor.tech
+LIVE ON cognifytutorsite.tech
 
 This is an AI-powered tutoring system that converts text questions into animated explanations with voice narration. The system features a Python backend (FastAPI) for LLM integration (Gemini API) to generate Manim code, render animations, and return video URLs. It also includes voice integration using ElevenLabs to add narration to the animations. The frontend is a React application with a simple UI for asking questions, displaying videos, and providing feedback.
 
