@@ -11,7 +11,15 @@ from config import MANIM_OUTPUT_DIR, MAX_VIDEO_DURATION
 class ManimRenderer:
     def __init__(self):
         self.output_dir = Path(MANIM_OUTPUT_DIR)
-        self.output_dir.mkdir(exist_ok=True)
+        # Ensure output directory exists and is writable
+        try:
+            self.output_dir.mkdir(parents=True, exist_ok=True)
+            # Test write permissions
+            test_file = self.output_dir / "test_write.tmp"
+            test_file.touch()
+            test_file.unlink()
+        except Exception as e:
+            raise Exception(f"Cannot create or write to output directory {self.output_dir}: {e}")
         
     def render_animation(self, manim_code: str, scene_name: str = "Explanation") -> Tuple[str, float, int]:
         """
@@ -41,18 +49,41 @@ class ManimRenderer:
                 # Windows-specific: Use shell=True if needed
                 use_shell = os.name == 'nt'
                 
-                result = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
-                    timeout=MAX_VIDEO_DURATION + 60,  # Add buffer for processing
-                    shell=use_shell  # Use shell on Windows
-                )
+                # On Windows, ensure we use the correct command format
+                if use_shell:
+                    # Join command for Windows shell
+                    cmd_str = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in cmd)
+                    result = subprocess.run(
+                        cmd_str,
+                        capture_output=True,
+                        text=True,
+                        timeout=MAX_VIDEO_DURATION + 60,
+                        shell=True
+                    )
+                else:
+                    result = subprocess.run(
+                        cmd,
+                        capture_output=True,
+                        text=True,
+                        timeout=MAX_VIDEO_DURATION + 60,
+                        shell=False
+                    )
                 
                 if result.returncode != 0:
                     error_msg = f"Manim rendering failed (exit code {result.returncode}):\n"
                     error_msg += f"STDOUT: {result.stdout}\n"
-                    error_msg += f"STDERR: {result.stderr}"
+                    error_msg += f"STDERR: {result.stderr}\n"
+                    error_msg += f"Platform: {os.name}\n"
+                    error_msg += f"Command: {' '.join(cmd)}\n"
+                    
+                    # Windows-specific troubleshooting hints
+                    if os.name == 'nt':
+                        error_msg += "\nWindows troubleshooting:\n"
+                        error_msg += "- Make sure FFmpeg is installed and in PATH\n"
+                        error_msg += "- Install LaTeX (MiKTeX recommended)\n"
+                        error_msg += "- Check if antivirus is blocking subprocess calls\n"
+                        error_msg += "- Try running as administrator if permission issues\n"
+                    
                     raise Exception(error_msg)
                 
                 # Find the generated video file
