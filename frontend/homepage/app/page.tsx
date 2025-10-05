@@ -1,3 +1,5 @@
+// This is the home page of our application. 
+
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Video, Zap, Share2, Settings } from "lucide-react"
