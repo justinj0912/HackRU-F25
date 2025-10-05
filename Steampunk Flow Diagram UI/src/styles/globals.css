@@ -1,0 +1,206 @@
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --font-size: 16px;
+  --background: #1a0f0a;
+  --foreground: #c9a579;
+  --card: #2a1c14;
+  --card-foreground: #c9a579;
+  --popover: #2a1c14;
+  --popover-foreground: #c9a579;
+  --primary: #c17a4a;
+  --primary-foreground: #1a0f0a;
+  --secondary: #8b5a3c;
+  --secondary-foreground: #c9a579;
+  --muted: #3d2818;
+  --muted-foreground: #9b7d5f;
+  --accent: #d9925f;
+  --accent-foreground: #1a0f0a;
+  --destructive: #8b2500;
+  --destructive-foreground: #c9a579;
+  --border: #5a3d28;
+  --input: transparent;
+  --input-background: #1a0f0a;
+  --switch-background: #5a3d28;
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --ring: #c17a4a;
+  --chart-1: #c17a4a;
+  --chart-2: #d9925f;
+  --chart-3: #8b5a3c;
+  --chart-4: #b8733f;
+  --chart-5: #a66840;
+  --radius: 0.25rem;
+  --sidebar: #2a1c14;
+  --sidebar-foreground: #c9a579;
+  --sidebar-primary: #c17a4a;
+  --sidebar-primary-foreground: #1a0f0a;
+  --sidebar-accent: #3d2818;
+  --sidebar-accent-foreground: #c9a579;
+  --sidebar-border: #5a3d28;
+  --sidebar-ring: #c17a4a;
+  
+  /* Steampunk custom colors */
+  --brass: #b8733f;
+  --copper: #c17a4a;
+  --bronze: #8b5a3c;
+  --iron: #3d3d3d;
+  --rust: #a0522d;
+  --parchment: #c9a579;
+  --leather: #5a3d28;
+}
+
+.dark {
+  --background: #1a1410;
+  --foreground: #e8dcc4;
+  --card: #2a1f1a;
+  --card-foreground: #e8dcc4;
+  --popover: #2a1f1a;
+  --popover-foreground: #e8dcc4;
+  --primary: #d4af37;
+  --primary-foreground: #1a1410;
+  --secondary: #8b6914;
+  --secondary-foreground: #e8dcc4;
+  --muted: #3d2f23;
+  --muted-foreground: #a89072;
+  --accent: #cd7f32;
+  --accent-foreground: #1a1410;
+  --destructive: #a0522d;
+  --destructive-foreground: #e8dcc4;
+  --border: #6b5640;
+  --input: #3d2f23;
+  --ring: #d4af37;
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --chart-1: #d4af37;
+  --chart-2: #cd7f32;
+  --chart-3: #8b6914;
+  --chart-4: #b8860b;
+  --chart-5: #996515;
+  --sidebar: #2a1f1a;
+  --sidebar-foreground: #e8dcc4;
+  --sidebar-primary: #d4af37;
+  --sidebar-primary-foreground: #1a1410;
+  --sidebar-accent: #3d2f23;
+  --sidebar-accent-foreground: #e8dcc4;
+  --sidebar-border: #6b5640;
+  --sidebar-ring: #d4af37;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-input-background: var(--input-background);
+  --color-switch-background: var(--switch-background);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  
+  --color-brass: var(--brass);
+  --color-copper: var(--copper);
+  --color-bronze: var(--bronze);
+  --color-iron: var(--iron);
+  --color-rust: var(--rust);
+  --color-parchment: var(--parchment);
+  --color-leather: var(--leather);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/**
+ * Base typography. This is not applied to elements which have an ancestor with a Tailwind text class.
+ */
+@layer base {
+  :where(:not(:has([class*=" text-"]), :not(:has([class^="text-"])))) {
+    h1 {
+      font-size: var(--text-2xl);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    h2 {
+      font-size: var(--text-xl);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    h3 {
+      font-size: var(--text-lg);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    h4 {
+      font-size: var(--text-base);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    p {
+      font-size: var(--text-base);
+      font-weight: var(--font-weight-normal);
+      line-height: 1.5;
+    }
+
+    label {
+      font-size: var(--text-base);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    button {
+      font-size: var(--text-base);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    input {
+      font-size: var(--text-base);
+      font-weight: var(--font-weight-normal);
+      line-height: 1.5;
+    }
+  }
+}
+
+html {
+  font-size: var(--font-size);
+}
