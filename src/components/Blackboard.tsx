@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Pencil, Eraser, Square, Circle, Type, Save, Trash2, Undo, Redo, Palette, Send } from 'lucide-react';
+import { Pencil, Eraser, Square, Circle, Type, Save, Trash2, Undo, Redo, Palette, Send, Download } from 'lucide-react';
 import { Button } from './ui/button';
 import { Separator } from './ui/separator';
 import { Slider } from './ui/slider';
@@ -201,6 +201,80 @@ export function Blackboard({ isVisible, onToggle, onSendToChat }: BlackboardProp
     alert('Blackboard saved! In a full implementation, this would sync with your backend.');
   };
 
+  const exportToPDF = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    // Check if there's any content on the canvas
+    if (strokes.length === 0) {
+      alert('Please draw something on the blackboard before exporting to PDF.');
+      return;
+    }
+
+    // Create a new canvas with white background for PDF
+    const pdfCanvas = document.createElement('canvas');
+    const pdfCtx = pdfCanvas.getContext('2d');
+    if (!pdfCtx) return;
+
+    // Set canvas size (A4 ratio)
+    const width = 800;
+    const height = 600;
+    pdfCanvas.width = width;
+    pdfCanvas.height = height;
+
+    // Fill with white background
+    pdfCtx.fillStyle = '#FFFFFF';
+    pdfCtx.fillRect(0, 0, width, height);
+
+    // Draw the blackboard content
+    pdfCtx.fillStyle = '#1F2937'; // Dark background
+    pdfCtx.fillRect(0, 0, width, height);
+
+    // Redraw all strokes
+    strokes.forEach(stroke => {
+      if (stroke.tool === 'pen' && stroke.points.length > 0) {
+        pdfCtx.strokeStyle = stroke.color;
+        pdfCtx.lineWidth = stroke.size;
+        pdfCtx.lineCap = 'round';
+        pdfCtx.lineJoin = 'round';
+        
+        pdfCtx.beginPath();
+        stroke.points.forEach((point, index) => {
+          if (index === 0) {
+            pdfCtx.moveTo(point.x, point.y);
+          } else {
+            pdfCtx.lineTo(point.x, point.y);
+          }
+        });
+        pdfCtx.stroke();
+      }
+    });
+
+    // Convert to image and create PDF
+    const imgData = pdfCanvas.toDataURL('image/png');
+    
+    // Create a simple PDF using jsPDF
+    import('jspdf').then(({ default: jsPDF }) => {
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      // Add the image to PDF
+      pdf.addImage(imgData, 'PNG', 10, 10, 190, 140);
+      
+      // Save the PDF
+      pdf.save('blackboard-drawing.pdf');
+    }).catch(() => {
+      // Fallback: download as image
+      const link = document.createElement('a');
+      link.download = 'blackboard-drawing.png';
+      link.href = imgData;
+      link.click();
+    });
+  };
+
   const sendToChat = () => {
     const canvas = canvasRef.current;
     if (!canvas || !onSendToChat) return;
@@ -329,6 +403,16 @@ export function Blackboard({ isVisible, onToggle, onSendToChat }: BlackboardProp
             className="gap-1 text-green-400 hover:text-green-300"
           >
             <Save className="w-4 h-4" />
+          </Button>
+
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={exportToPDF}
+            className="gap-1 text-blue-400 hover:text-blue-300"
+          >
+            <Download className="w-4 h-4" />
+            PDF
           </Button>
 
           <Button

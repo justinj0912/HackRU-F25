@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Loader2, Play, Video, Download, Volume2, VolumeX } from 'lucide-react';
+import { Send, Bot, User, Loader2, Play, Video, Download, Volume2, VolumeX, Upload, Image } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { ScrollArea } from './ui/scroll-area';
@@ -19,7 +19,7 @@ interface Message {
   imageData?: string;
 }
 
-type Theme = 'modern' | 'retro' | 'steampunk';
+type Theme = 'modern' | 'steampunk';
 
 interface ChatInterfaceProps {
   activeChat: Chat | null;
@@ -36,9 +36,11 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
   const [streamingMessage, setStreamingMessage] = useState<string>('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -53,13 +55,25 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
 
 
   const handleSend = async () => {
-    if (!message.trim() || !activeChat || isLoading) return;
+    if ((!message.trim() && !uploadedImage) || !activeChat || isLoading) return;
 
     const userMessage = message.trim();
     setMessage('');
     setIsLoading(true);
 
-    // Send user message
+    // If there's an uploaded image, analyze it
+    if (uploadedImage) {
+      // Analyze the image
+      if (onImageAnalysis) {
+        onImageAnalysis(uploadedImage);
+      }
+      
+      clearUploadedImage();
+      setIsLoading(false);
+      return; // Exit early to prevent text processing
+    }
+
+    // Send user message only if no image
     onSendMessage(activeChat.id, userMessage);
 
     if (videoMode) {
@@ -259,16 +273,22 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
 
         if (response.ok) {
           const result = await response.json();
+          console.log('Video generation response:', result);
           
           if (result.video_url && onAddAssistantMessage) {
+            console.log('Video URL found:', result.video_url);
             onAddAssistantMessage(activeChat.id, result.video_url, result.narration_audio_url);
           } else {
+            console.log('No video URL in response:', result);
             // Fallback to text response
             if (onAddAssistantMessage) {
               onAddAssistantMessage(activeChat.id, "Sorry, I couldn't generate a video from the image. Let me explain it in words instead!");
             }
           }
         } else {
+          console.log('Video generation failed with status:', response.status);
+          const errorText = await response.text();
+          console.log('Error response:', errorText);
           // Fallback to text response
           if (onAddAssistantMessage) {
             onAddAssistantMessage(activeChat.id, "Sorry, I couldn't generate a video from the image. Let me explain it in words instead!");
@@ -309,6 +329,37 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
     }
     
     setIsLoading(false);
+  };
+
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Check if it's an image file
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file.');
+      return;
+    }
+
+    // Check file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      alert('Image file is too large. Please select an image smaller than 10MB.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const imageData = e.target?.result as string;
+      setUploadedImage(imageData);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const clearUploadedImage = () => {
+    setUploadedImage(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   const generateVideo = () => {
@@ -380,16 +431,12 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
   if (!activeChat) {
     return (
       <div className={`h-full flex items-center justify-center ${
-        currentTheme === 'retro' 
-          ? 'bg-retro-gray' 
-          : currentTheme === 'steampunk'
+        currentTheme === 'steampunk'
           ? 'bg-steam-leather'
           : 'bg-card'
       }`}>
         <div className={`text-center ${
-          currentTheme === 'retro' 
-            ? 'text-black' 
-            : currentTheme === 'steampunk'
+          currentTheme === 'steampunk'
             ? 'text-steam-cream'
             : 'text-muted-foreground'
         }`}>
@@ -403,35 +450,27 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
 
   return (
     <div className={`h-full flex flex-col ${
-      currentTheme === 'retro' 
-        ? 'bg-retro-gray' 
-        : currentTheme === 'steampunk'
+      currentTheme === 'steampunk'
         ? 'bg-steam-leather'
         : 'bg-gray-800'
     }`}>
       {/* Chat Header */}
       <div className={`p-3 border-b ${
-        currentTheme === 'retro'
-          ? 'border-retro-dark bg-retro-gray retro-titlebar'
-          : currentTheme === 'steampunk'
+        currentTheme === 'steampunk'
           ? 'steam-titlebar steam-rivets'
           : 'border-border bg-background'
       }`}>
         <div className="flex items-center gap-3">
           <div
             className={`w-4 h-4 ${
-              currentTheme === 'retro' 
-                ? 'border border-black' 
-                : currentTheme === 'steampunk'
+              currentTheme === 'steampunk'
                 ? 'border-2 border-steam-brass rounded-sm'
                 : 'rounded-full'
             }`}
             style={{ backgroundColor: activeChat.color }}
           />
           <h2 className={`text-lg ${
-            currentTheme === 'retro' 
-              ? 'text-white' 
-              : currentTheme === 'steampunk'
+            currentTheme === 'steampunk'
               ? 'text-steam-cream font-steampunk'
               : 'text-white'
           }`}>
@@ -440,9 +479,7 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
           <Badge 
             variant="outline" 
             className={
-              currentTheme === 'retro'
-                ? 'retro-button !text-xs !p-1'
-                : currentTheme === 'steampunk'
+              currentTheme === 'steampunk'
                 ? 'steam-button !text-xs !p-1'
                 : 'text-muted-foreground border-border'
             }
@@ -454,9 +491,7 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
 
       {/* Messages */}
       <ScrollArea className={`flex-1 p-4 ${
-        currentTheme === 'retro' 
-          ? 'retro-scrollbar' 
-          : currentTheme === 'steampunk'
+        currentTheme === 'steampunk'
           ? 'steam-scrollbar'
           : ''
       }`} style={{ maxHeight: 'calc(100vh - 200px)' }}>
@@ -472,9 +507,7 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
             >
               {message.role === 'assistant' && (
                 <div className={`w-8 h-8 flex items-center justify-center flex-shrink-0 ${
-                  currentTheme === 'retro'
-                    ? 'bg-retro-blue border-2 border-retro-dark'
-                    : currentTheme === 'steampunk'
+                  currentTheme === 'steampunk'
                     ? 'steam-metal-frame bg-steam-brass'
                     : 'bg-red-700 rounded-full'
                 }`}>
@@ -484,11 +517,7 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
               
               <Card
                 className={`max-w-[80%] p-3 ${
-                  currentTheme === 'retro'
-                    ? (message.role === 'assistant' 
-                        ? 'retro-card !bg-retro-light' 
-                        : 'retro-card !bg-retro-blue !text-white')
-                    : currentTheme === 'steampunk'
+                  currentTheme === 'steampunk'
                     ? (message.role === 'assistant'
                         ? 'steam-card !bg-steam-copper'
                         : 'steam-card !bg-steam-brass !text-steam-charcoal')
@@ -500,9 +529,7 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
                 
                 {message.role === 'assistant' && !message.content.startsWith('/videos/') ? (
                   <div className={`prose prose-sm max-w-none ${
-                    currentTheme === 'retro'
-                      ? 'prose-gray'
-                      : currentTheme === 'steampunk'
+                    currentTheme === 'steampunk'
                       ? 'prose-steam'
                       : 'prose-invert'
                   }`}>
@@ -527,12 +554,10 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
                   </div>
                 ) : message.role === 'user' ? (
                   <p className={`whitespace-pre-wrap ${
-                    currentTheme === 'retro'
-                        ? 'text-white'
-                      : currentTheme === 'steampunk'
-                        ? 'text-steam-charcoal'
+                    currentTheme === 'steampunk'
+                      ? 'text-steam-charcoal'
                       : 'text-white'
-                    }`}>{message.content}</p>
+                  }`}>{message.content}</p>
                 ) : null}
                 
                 {/* Text-to-Speech button for assistant messages */}
@@ -576,9 +601,7 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
                 )}
                 
                 <div className={`text-xs mt-2 ${
-                  currentTheme === 'retro'
-                    ? (message.role === 'assistant' ? 'text-muted-foreground' : 'text-foreground')
-                    : currentTheme === 'steampunk'
+                  currentTheme === 'steampunk'
                     ? (message.role === 'assistant' ? 'text-steam-cream opacity-70' : 'text-steam-charcoal opacity-70')
                     : 'text-muted-foreground'
                 }`}>
@@ -588,9 +611,7 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
 
               {message.role === 'user' && (
                 <div className={`w-8 h-8 flex items-center justify-center flex-shrink-0 ${
-                  currentTheme === 'retro'
-                    ? 'bg-retro-green border-2 border-retro-dark'
-                    : currentTheme === 'steampunk'
+                  currentTheme === 'steampunk'
                     ? 'steam-metal-frame bg-steam-copper'
                     : 'bg-muted rounded-full'
                 }`}>
@@ -605,9 +626,7 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
           {isStreaming && streamingMessage && (
             <div className="flex gap-3 justify-start">
               <div className={`w-8 h-8 flex items-center justify-center flex-shrink-0 ${
-                currentTheme === 'retro'
-                  ? 'bg-retro-blue border-2 border-retro-dark'
-                  : currentTheme === 'steampunk'
+                currentTheme === 'steampunk'
                   ? 'steam-metal-frame bg-steam-brass'
                   : 'bg-red-700 rounded-full'
               }`}>
@@ -615,16 +634,12 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
               </div>
               
               <Card className={`max-w-[80%] p-3 ${
-                currentTheme === 'retro'
-                  ? 'retro-card !bg-retro-light'
-                  : currentTheme === 'steampunk'
+                currentTheme === 'steampunk'
                   ? 'steam-card !bg-steam-copper'
                   : 'bg-muted border-border'
               }`}>
                 <div className={`prose prose-sm max-w-none ${
-                  currentTheme === 'retro'
-                    ? 'prose-gray'
-                    : currentTheme === 'steampunk'
+                  currentTheme === 'steampunk'
                     ? 'prose-steam'
                     : 'prose-invert'
                 }`}>
@@ -660,21 +675,11 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
 
           {isLoading && !isStreaming && (
             <div className="flex gap-3 justify-start">
-              <div className={`w-8 h-8 flex items-center justify-center flex-shrink-0 ${
-                currentTheme === 'retro' 
-                  ? 'bg-retro-blue border-2 border-retro-dark' 
-                  : 'bg-red-700 rounded-full'
-              }`}>
+              <div className="w-8 h-8 flex items-center justify-center flex-shrink-0 bg-red-700 rounded-full">
                 <Bot className="w-4 h-4 text-white" />
               </div>
-              <Card className={`p-3 ${
-                currentTheme === 'retro' 
-                  ? 'retro-card !bg-retro-light' 
-                  : 'bg-muted border-border'
-              }`}>
-                <div className={`flex items-center gap-2 ${
-                  currentTheme === 'retro' ? 'text-black' : 'text-muted-foreground'
-                }`}>
+              <Card className="p-3 bg-muted border-border">
+                <div className="flex items-center gap-2 text-muted-foreground">
                   <Loader2 className="w-4 h-4 animate-spin" />
                   AI is thinking...
                 </div>
@@ -687,32 +692,39 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
       </ScrollArea>
 
       {/* Input Area */}
-      <div className={`p-3 border-t ${
-        currentTheme === 'retro' 
-          ? 'border-retro-dark bg-retro-gray retro-panel' 
-          : 'border-border bg-background'
-      }`}>
+      <div className="p-3 border-t border-border bg-background">
         <div className="flex gap-2">
+          {uploadedImage && (
+            <div className="flex items-center gap-2 p-2 border border-border rounded-lg bg-muted/50">
+              <img 
+                src={uploadedImage} 
+                alt="Uploaded" 
+                className="w-8 h-8 object-cover rounded border border-border"
+              />
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                onClick={clearUploadedImage}
+              >
+                ×
+              </Button>
+            </div>
+          )}
+          
           <Input
             ref={inputRef}
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyPress={handleKeyPress}
             placeholder={videoMode ? "Ask for a video explanation (e.g., 'can you make a video explaining photosynthesis')" : "Ask me anything! I can help with any subject..."}
-            className={`flex-1 ${
-              currentTheme === 'retro' 
-                ? 'retro-input' 
-                : 'bg-card border-border text-foreground placeholder-muted-foreground'
-            }`}
+            className="flex-1 bg-card border-border text-foreground placeholder-muted-foreground"
             disabled={isLoading}
           />
           <Button
             onClick={handleSend}
-            disabled={!message.trim() || isLoading}
-            className={currentTheme === 'retro' 
-              ? 'retro-button' 
-              : 'bg-red-700 hover:bg-red-600 text-white'
-            }
+            disabled={(!message.trim() && !uploadedImage) || isLoading}
+            className="bg-red-700 hover:bg-red-600 text-white"
           >
             <Send className="w-4 h-4" />
           </Button>
@@ -731,6 +743,25 @@ export function ChatInterface({ activeChat, onSendMessage, onAddAssistantMessage
           >
             🎥 Video Mode
           </Button>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleImageUpload}
+            className="hidden"
+          />
+          
+          <Button
+            size="sm"
+            variant="outline"
+            className="text-xs border-border text-muted-foreground hover:text-foreground hover:border-primary"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Upload className="w-3 h-3 mr-1" />
+            Upload Image
+          </Button>
+
         </div>
       </div>
 

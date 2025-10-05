@@ -10,7 +10,7 @@ export interface Chat {
   id: string;
   title: string;
   color: string;
-  type: 'chat' | 'mindmap';
+  type: 'chat' | 'conceptmap';
   messages: Array<{ 
     role: 'user' | 'assistant'; 
     content: string; 
@@ -20,16 +20,28 @@ export interface Chat {
     narrationAudioUrl?: string;
   }>;
   createdAt: Date;
+  conceptMapNodes?: Array<{
+    id: string;
+    title: string;
+    summary?: string;
+    x: number;
+    y: number;
+    expanded: boolean;
+    parentId?: string;
+    children: string[];
+    importance: 'high' | 'medium' | 'low';
+    color?: string;
+  }>;
 }
 
-type Theme = 'modern' | 'retro';
+type Theme = 'modern';
 
 interface ChatSidebarProps {
   chats: Chat[];
   activeChat: string | null;
   onSelectChat: (chatId: string) => void;
   onCreateChat: () => void;
-  onCreateMindMap: () => void;
+  onCreateConceptMap: () => void;
   onRenameChat: (chatId: string, newTitle: string) => void;
   onDeleteChat: (chatId: string) => void;
   onChangeColor: (chatId: string, color: string) => void;
@@ -54,7 +66,7 @@ export function ChatSidebar({
   activeChat,
   onSelectChat,
   onCreateChat,
-  onCreateMindMap,
+  onCreateConceptMap,
   onRenameChat,
   onDeleteChat,
   onChangeColor,
@@ -82,62 +94,38 @@ export function ChatSidebar({
   };
 
   return (
-    <div className={`h-full border-r flex flex-col ${
-      currentTheme === 'retro'
-        ? 'bg-retro-gray border-retro-dark retro-panel'
-        : 'bg-background border-border'
-    }`}>
+    <div className="h-full border-r flex flex-col bg-background border-border">
       {/* Header */}
-      <div className={`p-2 border-b ${
-        currentTheme === 'retro'
-          ? 'border-retro-dark'
-          : 'border-border'
-      }`}>
+      <div className="p-2 border-b border-border">
         <div className="space-y-2">
           <Button
             onClick={onCreateChat}
-            className={`w-full gap-2 ${
-              currentTheme === 'retro'
-                ? 'retro-button'
-                : 'bg-primary hover:bg-primary/90 text-primary-foreground'
-            }`}
+            className="w-full gap-2 bg-primary hover:bg-primary/90 text-primary-foreground"
           >
             <MessageSquare className="w-4 h-4" />
             New Chat
           </Button>
           
           <Button
-            onClick={onCreateMindMap}
-            className={`w-full gap-2 ${
-              currentTheme === 'retro'
-                ? 'retro-button'
-                : 'bg-secondary hover:bg-secondary/90 text-secondary-foreground'
-            }`}
+            onClick={onCreateConceptMap}
+            className="w-full gap-2 bg-secondary hover:bg-secondary/90 text-secondary-foreground"
           >
             <Network className="w-4 h-4" />
-            New Mind Map
+            New Concept Map
           </Button>
         </div>
       </div>
 
       {/* Chat List */}
-      <ScrollArea className={`flex-1 p-2 ${
-        currentTheme === 'retro' 
-          ? 'retro-scrollbar' 
-          : ''
-      }`}>
+      <ScrollArea className="flex-1 p-2">
         <div className="space-y-1">
           {chats.map((chat) => (
             <Card
               key={chat.id}
-              className={`group p-2 cursor-pointer transition-colors ${
-                currentTheme === 'retro'
-                  ? `retro-card ${activeChat === chat.id ? 'active' : ''}`
-                  : `border-border hover:bg-card ${
-                      activeChat === chat.id
-                        ? 'bg-card border-primary'
-                        : 'bg-background'
-                    }`
+              className={`group p-2 cursor-pointer transition-colors border-border hover:bg-card ${
+                activeChat === chat.id
+                  ? 'bg-card border-primary'
+                  : 'bg-background'
               }`}
               onClick={() => onSelectChat(chat.id)}
             >
@@ -159,23 +147,19 @@ export function ChatSidebar({
                         if (e.key === 'Escape') handleCancelEdit();
                       }}
                       onBlur={handleSaveEdit}
-                      className={`h-6 text-sm ${
-                        currentTheme === 'retro'
-                          ? 'retro-input'
-                          : 'bg-card border-border'
-                      }`}
+                      className="h-6 text-sm bg-card border-border"
                       autoFocus
                       onClick={(e) => e.stopPropagation()}
                     />
                   ) : (
                     <div className="flex items-center gap-1">
-                      {chat.type === 'mindmap' ? (
+                      {chat.type === 'conceptmap' ? (
                         <Network className="w-3 h-3 text-muted-foreground" />
                       ) : (
                         <MessageSquare className="w-3 h-3 text-muted-foreground" />
                       )}
                       <p className={`text-sm truncate ${
-                        currentTheme === 'retro'
+                        false
                           ? (activeChat === chat.id ? 'text-white' : 'text-black')
                           : 'text-foreground'
                       }`}>
@@ -192,25 +176,13 @@ export function ChatSidebar({
                       <Button
                         size="sm"
                         variant="ghost"
-                        className={`h-6 w-6 p-0 ${
-                          currentTheme === 'retro'
-                            ? 'retro-button !min-h-[16px] !p-0'
-                            : 'hover:bg-muted'
-                        }`}
+                        className="h-6 w-6 p-0 hover:bg-muted"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <Palette className={`w-3 h-3 ${
-                          currentTheme === 'retro' 
-                            ? 'text-black' 
-                            : 'text-muted-foreground'
-                        }`} />
+                        <Palette className="w-3 h-3 text-muted-foreground" />
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className={`w-40 p-2 ${
-                      currentTheme === 'retro'
-                        ? 'bg-retro-gray border-retro-dark retro-panel'
-                        : 'bg-card border-border'
-                    }`}>
+                    <PopoverContent className="w-40 p-2 bg-card border-border">
                       <div className="grid grid-cols-5 gap-1">
                         {colors.map((color) => (
                           <button
@@ -229,52 +201,32 @@ export function ChatSidebar({
                   <Button
                     size="sm"
                     variant="ghost"
-                    className={`h-6 w-6 p-0 ${
-                      currentTheme === 'retro'
-                        ? 'retro-button !min-h-[16px] !p-0'
-                        : 'hover:bg-gray-700'
-                    }`}
+                        className="h-6 w-6 p-0 hover:bg-gray-700"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleStartEdit(chat);
                     }}
                   >
-                    <Edit2 className={`w-3 h-3 ${
-                      currentTheme === 'retro' 
-                        ? 'text-black' 
-                        : 'text-muted-foreground'
-                    }`} />
+                        <Edit2 className="w-3 h-3 text-muted-foreground" />
                   </Button>
 
                   <Button
                     size="sm"
                     variant="ghost"
-                    className={`h-6 w-6 p-0 ${
-                      currentTheme === 'retro'
-                        ? 'retro-button !min-h-[16px] !p-0'
-                        : 'hover:bg-red-600'
-                    }`}
+                    className="h-6 w-6 p-0 hover:bg-red-600"
                     onClick={(e) => {
                       e.stopPropagation();
                       onDeleteChat(chat.id);
                     }}
                   >
-                    <Trash2 className={`w-3 h-3 ${
-                      currentTheme === 'retro' 
-                        ? 'text-black' 
-                        : 'text-muted-foreground'
-                    }`} />
+                        <Trash2 className="w-3 h-3 text-muted-foreground" />
                   </Button>
                 </div>
               </div>
 
               {/* Last message preview */}
               {chat.messages.length > 0 && (
-                <p className={`text-xs mt-1 truncate ${
-                  currentTheme === 'retro'
-                    ? (activeChat === chat.id ? 'text-foreground' : 'text-muted-foreground')
-                    : 'text-muted-foreground'
-                }`}>
+                <p className="text-xs mt-1 truncate text-muted-foreground">
                   {chat.messages[chat.messages.length - 1].content}
                 </p>
               )}
@@ -283,7 +235,7 @@ export function ChatSidebar({
 
           {chats.length === 0 && (
             <div className={`text-center py-8 ${
-              currentTheme === 'retro' 
+              false 
                 ? 'text-black' 
                 : 'text-muted-foreground'
             }`}>

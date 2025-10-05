@@ -69,9 +69,9 @@ export function MindMapCanvas({ onSave, onLoad, onGenerateTopics }: MindMapCanva
     const newId = `node-${Date.now()}`;
     const newLevel = parent.level + 1;
     
-    // Position child node near parent
+    // Position child node near parent - use dynamic spacing
     const siblings = nodes.filter(n => n.parentId === parentId);
-    const childX = parent.x + 300 + (siblings.length * 50);
+    const childX = parent.x + 200 + (siblings.length * 50); // Reduced from 320 to 200 for auto-sized nodes
     const childY = parent.y + (siblings.length * 100);
 
     const newNode: MindMapNodeData = {
@@ -101,16 +101,50 @@ export function MindMapCanvas({ onSave, onLoad, onGenerateTopics }: MindMapCanva
     });
   }, [nodes, updateNode]);
 
-  const acceptSuggestion = useCallback((suggestionId: string) => {
+  const acceptSuggestion = useCallback(async (suggestionId: string) => {
     const suggestion = nodes.find(n => n.id === suggestionId);
-    if (!suggestion) return;
+    if (!suggestion || !onGenerateTopics) return;
 
-    // Convert suggestion to regular node
-    updateNode(suggestionId, { 
-      isSuggestion: false,
-      isEditing: true
-    });
-  }, [nodes, updateNode]);
+    try {
+      // Generate new content for the suggestion topic
+      const newNodes = await onGenerateTopics(suggestion.title);
+      if (newNodes.length > 0) {
+        // Replace the suggestion with the new main topic
+        const newNode = newNodes[0]; // Should be the main topic
+        updateNode(suggestionId, {
+          title: newNode.title,
+          content: newNode.content,
+          isSuggestion: false,
+          isMainTopic: true,
+          isEditing: false
+        });
+        
+        // Add the new suggestions from the generated content
+        const newSuggestions = newNodes.slice(1); // Skip the main topic
+        newSuggestions.forEach((newSuggestion, index) => {
+          const newId = `suggestion-${Date.now()}-${index}`;
+          const newSuggestionNode: MindMapNodeData = {
+            id: newId,
+            title: newSuggestion.title,
+            content: newSuggestion.content,
+            x: suggestion.x + (index * 100), // Position near the new main topic
+            y: suggestion.y + (index * 50),
+            level: 0,
+            parentId: suggestionId,
+            children: [],
+            isExpanded: false,
+            isEditing: false,
+            isSuggestion: true,
+            isMainTopic: false
+          };
+          
+          setNodes(prev => [...prev, newSuggestionNode]);
+        });
+      }
+    } catch (error) {
+      console.error('Failed to generate topic for suggestion:', error);
+    }
+  }, [nodes, updateNode, onGenerateTopics]);
 
   const rejectSuggestion = useCallback((suggestionId: string) => {
     setNodes(prev => prev.filter(n => n.id !== suggestionId));
@@ -161,24 +195,27 @@ export function MindMapCanvas({ onSave, onLoad, onGenerateTopics }: MindMapCanva
     }
   }, [isPanning, panStart]);
 
-  // Tree-style arrow connections (parent to child only)
+  // Render all connections (parent-child and suggestion lines)
   const renderConnections = () => {
-    return nodes.map(node => {
-      if (!node.parentId || node.isSuggestion) return null;
+    const connections = [];
+    
+    // Regular parent-child connections
+    nodes.forEach(node => {
+      if (!node.parentId || node.isSuggestion) return;
       
       const parent = nodes.find(n => n.id === node.parentId);
-      if (!parent) return null;
+      if (!parent) return;
 
       // Calculate connection points (from parent center to child center)
-      const parentX = parent.x + 100; // Center of parent node
-      const parentY = parent.y + 60;
-      const childX = node.x + 100;
-      const childY = node.y + 60;
+      const parentX = parent.x;
+      const parentY = parent.y;
+      const childX = node.x;
+      const childY = node.y;
 
       // Create simple line from parent to child
       const path = `M ${parentX} ${parentY} L ${childX} ${childY}`;
 
-      return (
+      connections.push(
         <g key={`connection-${node.id}`}>
           <path
             d={path}
@@ -191,6 +228,31 @@ export function MindMapCanvas({ onSave, onLoad, onGenerateTopics }: MindMapCanva
         </g>
       );
     });
+
+    // Suggestion lines from complete nodes to their suggestions
+    nodes.forEach(node => {
+      if (!node.isSuggestion) { // Only complete nodes (not suggestions themselves)
+        const suggestions = nodes.filter(n => n.isSuggestion && n.parentId === node.id);
+        suggestions.forEach(suggestion => {
+          const path = `M ${node.x} ${node.y} L ${suggestion.x} ${suggestion.y}`;
+          
+          connections.push(
+            <g key={`suggestion-${suggestion.id}`}>
+              <path
+                d={path}
+                stroke="var(--primary)"
+                strokeWidth="1"
+                fill="none"
+                strokeDasharray="3,3"
+                className="opacity-20"
+              />
+            </g>
+          );
+        });
+      }
+    });
+
+    return connections;
   };
 
   // Initialize with topic input if no nodes
@@ -203,7 +265,7 @@ export function MindMapCanvas({ onSave, onLoad, onGenerateTopics }: MindMapCanva
   return (
     <div className="h-full bg-background flex flex-col">
       {/* Toolbar */}
-      <div className="p-3 border-b border-border bg-card flex items-center justify-between">
+      <div className="p-3 border-b border-primary bg-gradient-to-b from-card to-background flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Button
             size="sm"
@@ -255,7 +317,7 @@ export function MindMapCanvas({ onSave, onLoad, onGenerateTopics }: MindMapCanva
         </div>
 
         <div className="text-sm text-muted-foreground">
-          {nodes.length} concepts
+          {nodes.length} node{nodes.length !== 1 ? 's' : ''}
         </div>
       </div>
 
@@ -265,10 +327,10 @@ export function MindMapCanvas({ onSave, onLoad, onGenerateTopics }: MindMapCanva
           <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center">
             <div className="bg-card border border-border rounded-lg p-6 max-w-md w-full mx-4">
               <h3 className="text-lg font-semibold text-foreground mb-4">
-                Create New Mind Map
+                Create New Flowchart
               </h3>
               <p className="text-sm text-muted-foreground mb-4">
-                Enter a topic to generate an interactive mind map with AI-powered concept branching.
+                Enter a topic to generate a single comprehensive node with AI summary. You can then expand it into a flowchart by adding child concepts.
               </p>
               <div className="space-y-4">
                 <input
@@ -297,7 +359,7 @@ export function MindMapCanvas({ onSave, onLoad, onGenerateTopics }: MindMapCanva
                     ) : (
                       <>
                         <Plus className="w-4 h-4 mr-2" />
-                        Generate Mind Map
+                        Generate Flowchart
                       </>
                     )}
                   </Button>
@@ -349,30 +411,36 @@ export function MindMapCanvas({ onSave, onLoad, onGenerateTopics }: MindMapCanva
             </defs>
             {renderConnections()}
           </svg>
-
-          {/* Nodes */}
-          {nodes.map(node => (
-            <MindMapNode
-              key={node.id}
-              node={node}
-              isSelected={selectedNodeId === node.id}
-              onSelect={setSelectedNodeId}
-              onUpdate={updateNode}
-              onDelete={deleteNode}
-              onAddChild={addChildNode}
-              onExpand={expandNode}
-              onAcceptSuggestion={acceptSuggestion}
-              onRejectSuggestion={rejectSuggestion}
-              scale={scale}
-            />
-          ))}
         </div>
+
+        {/* Nodes - rendered outside canvas to avoid event conflicts */}
+        {nodes.map(node => (
+          <MindMapNode
+            key={node.id}
+            node={node}
+            isSelected={selectedNodeId === node.id}
+            onSelect={setSelectedNodeId}
+            onUpdate={updateNode}
+            onDelete={deleteNode}
+            onAddChild={addChildNode}
+            onExpand={expandNode}
+            onAcceptSuggestion={acceptSuggestion}
+            onRejectSuggestion={rejectSuggestion}
+            scale={scale}
+            onDragStart={(id) => setSelectedNodeId(id)}
+            onDrag={(id, x, y) => updateNode(id, { x, y })}
+            onDragEnd={() => {}}
+          />
+        ))}
       </div>
 
       {/* Instructions */}
-      <div className="p-2 border-t border-border bg-card">
-        <p className="text-xs text-muted-foreground text-center">
-          Click nodes to select • Scroll to zoom • Pan to navigate • Accept/reject suggestions
+      <div className="p-2 border-t border-primary bg-gradient-to-b from-card to-background">
+        <p className="text-xs text-foreground text-center">
+          <span className="text-accent">⚙</span> Drag nodes to reposition • 
+          <span className="text-accent">🔍</span> Scroll to zoom • 
+          <span className="text-accent">🖱</span> Pan to navigate • 
+          <span className="text-accent">➕</span> Click + to add child concepts
         </p>
       </div>
     </div>

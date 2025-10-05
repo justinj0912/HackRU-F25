@@ -1,20 +1,46 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { PanelLeft, PanelRight, Monitor, Palette } from 'lucide-react';
 import { Button } from './components/ui/button';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from './components/ui/resizable';
 import { ChatSidebar, type Chat } from './components/ChatSidebar';
 import { ChatInterface } from './components/ChatInterface';
 import { Blackboard } from './components/Blackboard';
-import { MindMapCanvas, MindMapNodeData } from './components/MindMapCanvas';
+import { ConceptMap, ConceptNode } from './components/ConceptMap';
 
-type Theme = 'modern' | 'retro';
+type Theme = 'modern';
 
 export default function App() {
   const [chats, setChats] = useState<Chat[]>([]);
   const [activeChat, setActiveChat] = useState<string | null>(null);
   const [isWhiteboardVisible, setIsWhiteboardVisible] = useState(false);
   const [sidebarVisible, setSidebarVisible] = useState(true);
-  const [currentTheme, setCurrentTheme] = useState<Theme>('modern');
+
+  // Load chats from localStorage on mount
+  useEffect(() => {
+    const savedChats = localStorage.getItem('ai-tutor-chats');
+    if (savedChats) {
+      try {
+        const parsedChats = JSON.parse(savedChats).map((chat: any) => ({
+          ...chat,
+          createdAt: new Date(chat.createdAt),
+          messages: chat.messages.map((msg: any) => ({
+            ...msg,
+            timestamp: new Date(msg.timestamp)
+          }))
+        }));
+        setChats(parsedChats);
+      } catch (error) {
+        console.error('Failed to load saved chats:', error);
+      }
+    }
+  }, []);
+
+  // Save chats to localStorage whenever chats change
+  useEffect(() => {
+    if (chats.length > 0) {
+      localStorage.setItem('ai-tutor-chats', JSON.stringify(chats));
+    }
+  }, [chats]);
 
   const createNewChat = useCallback(() => {
     const newChat: Chat = {
@@ -30,12 +56,12 @@ export default function App() {
     setActiveChat(newChat.id);
   }, [chats.length]);
 
-  const createNewMindMap = useCallback(() => {
+  const createNewConceptMap = useCallback(() => {
     const newChat: Chat = {
       id: Date.now().toString(),
-      title: `Mind Map ${chats.length + 1}`,
+      title: `Concept Map ${chats.length + 1}`,
       color: '#8B5A3C', // brown
-      type: 'mindmap',
+      type: 'conceptmap',
       messages: [],
       createdAt: new Date(),
     };
@@ -48,106 +74,6 @@ export default function App() {
     setActiveChat(chatId);
   }, []);
 
-  const generateMindMapTopics = async (topic: string): Promise<MindMapNodeData[]> => {
-    try {
-      const response = await fetch('http://localhost:8000/generate-mind-map', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          topic: topic,
-          depth: 3,
-          max_branches: 5
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to generate mind map');
-      }
-
-      const data = await response.json();
-      return data.nodes;
-    } catch (error) {
-      console.error('Error generating mind map:', error);
-      
-      // Fallback: Create a simple mind map structure when API is unavailable
-      const fallbackNodes: MindMapNodeData[] = [
-        {
-          id: 'main_topic',
-          title: topic,
-          content: `This is the main topic: ${topic}. This mind map will help you explore and organize concepts related to this subject.`,
-          x: 400,
-          y: 300,
-          level: 0,
-          parentId: null,
-          children: [],
-          isExpanded: true,
-          isEditing: false,
-          isSuggestion: false,
-          isMainTopic: true
-        },
-        {
-          id: 'suggestion_1',
-          title: 'Key Concepts',
-          content: `Explore the fundamental concepts and principles related to ${topic}.`,
-          x: 100,
-          y: 150,
-          level: 0,
-          parentId: null,
-          children: [],
-          isExpanded: true,
-          isEditing: false,
-          isSuggestion: true,
-          isMainTopic: false
-        },
-        {
-          id: 'suggestion_2',
-          title: 'Applications',
-          content: `Learn about real-world applications and examples of ${topic}.`,
-          x: 450,
-          y: 150,
-          level: 0,
-          parentId: null,
-          children: [],
-          isExpanded: true,
-          isEditing: false,
-          isSuggestion: true,
-          isMainTopic: false
-        },
-        {
-          id: 'suggestion_3',
-          title: 'History & Development',
-          content: `Discover the historical context and development of ${topic}.`,
-          x: 100,
-          y: 350,
-          level: 0,
-          parentId: null,
-          children: [],
-          isExpanded: true,
-          isEditing: false,
-          isSuggestion: true,
-          isMainTopic: false
-        },
-        {
-          id: 'suggestion_4',
-          title: 'Future Trends',
-          content: `Explore emerging trends and future directions in ${topic}.`,
-          x: 450,
-          y: 350,
-          level: 0,
-          parentId: null,
-          children: [],
-          isExpanded: true,
-          isEditing: false,
-          isSuggestion: true,
-          isMainTopic: false
-        }
-      ];
-      
-      return fallbackNodes;
-    }
-  };
 
   const renameChat = useCallback((chatId: string, newTitle: string) => {
     setChats(prev => prev.map(chat => 
@@ -168,6 +94,20 @@ export default function App() {
     ));
   }, []);
 
+  // Save concept map nodes
+  const saveConceptMap = useCallback((chatId: string, nodes: ConceptNode[]) => {
+    setChats(prev => prev.map(chat => 
+      chat.id === chatId ? { ...chat, conceptMapNodes: nodes } : chat
+    ));
+  }, []);
+
+  // Load concept map nodes
+  const loadConceptMap = useCallback((chatId: string): ConceptNode[] => {
+    const chat = chats.find(c => c.id === chatId);
+    return chat?.conceptMapNodes || [];
+  }, [chats]);
+
+
   const sendMessage = useCallback((chatId: string, message: string) => {
     const newMessage = {
       role: 'user' as const,
@@ -177,10 +117,7 @@ export default function App() {
 
     setChats(prev => prev.map(chat => {
       if (chat.id === chatId) {
-        return {
-          ...chat,
-          messages: [...chat.messages, newMessage],
-        };
+        return { ...chat, messages: [...chat.messages, newMessage] };
       }
       return chat;
     }));
@@ -210,36 +147,11 @@ export default function App() {
     sendMessage(chatId, message);
   }, [sendMessage]);
 
-  const cycleTheme = useCallback(() => {
-    setCurrentTheme(prev => prev === 'modern' ? 'retro' : 'modern');
-  }, []);
-
-  const getThemeClasses = () => {
-    switch (currentTheme) {
-      case 'retro':
-        return 'retro-theme bg-retro-gray text-black font-retro';
-      default:
-        return 'bg-background text-foreground';
-    }
-  };
-
-  const getThemeIcon = () => {
-    switch (currentTheme) {
-      case 'retro':
-        return <Monitor className="w-4 h-4" />;
-      default:
-        return <Palette className="w-4 h-4" />;
-    }
-  };
-
-  const getThemeLabel = () => {
-    return currentTheme === 'retro' ? 'Modern' : 'Retro';
-  };
 
   const currentChat = chats.find(chat => chat.id === activeChat);
 
   return (
-    <div className={`h-screen overflow-hidden ${getThemeClasses()}`}>
+    <div className="h-screen overflow-hidden bg-background text-foreground">
       {/* Main Layout */}
       <ResizablePanelGroup direction="horizontal" className="h-full">
         {/* Sidebar */}
@@ -254,20 +166,15 @@ export default function App() {
             activeChat={activeChat}
             onSelectChat={selectChat}
             onCreateChat={createNewChat}
-            onCreateMindMap={createNewMindMap}
+            onCreateConceptMap={createNewConceptMap}
             onRenameChat={renameChat}
             onDeleteChat={deleteChat}
             onChangeColor={changeColor}
-            currentTheme={currentTheme}
           />
         </ResizablePanel>
         
         {sidebarVisible && (
-          <ResizableHandle className={`w-1 transition-colors ${
-            currentTheme === 'retro' 
-              ? 'retro-handle' 
-              : 'bg-border hover:bg-muted'
-          }`} />
+          <ResizableHandle className="w-1 transition-colors bg-border hover:bg-muted" />
         )}
 
         {/* Chat Interface */}
@@ -277,60 +184,31 @@ export default function App() {
         >
           <div className="h-full flex flex-col">
             {/* Header with controls */}
-            <div className={`flex items-center justify-between p-2 border-b ${
-              currentTheme === 'retro'
-                ? 'bg-retro-gray border-retro-dark retro-inset'
-                : 'bg-card border-border'
-            }`}>
+            <div className="flex items-center justify-between p-2 border-b bg-card border-border">
               <div className="flex items-center gap-2">
                 {!sidebarVisible && (
                   <Button
                     size="sm"
                     variant="ghost"
                     onClick={() => setSidebarVisible(true)}
-                    className={
-                      currentTheme === 'retro' 
-                        ? "retro-button" 
-                        : "text-muted-foreground hover:text-foreground"
-                    }
+                    className="text-muted-foreground hover:text-foreground"
                   >
                     <PanelLeft className="w-4 h-4" />
                   </Button>
                 )}
-                <h1 className={`text-lg ${
-                  currentTheme === 'retro' 
-                    ? 'text-black' 
-                    : 'text-foreground'
-                }`}>
-                  Cognify {currentTheme === 'retro' && '- Windows 98 Edition'}
+                <h1 className="text-lg text-foreground">
+                  Cognify
                 </h1>
               </div>
 
               <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={cycleTheme}
-                  className={`gap-2 ${
-                    currentTheme === 'retro'
-                      ? 'retro-button'
-                      : 'text-gray-400 hover:text-white'
-                  }`}
-                >
-                  {getThemeIcon()}
-                  {getThemeLabel()}
-                </Button>
 
                 {sidebarVisible && (
                   <Button
                     size="sm"
                     variant="ghost"
                     onClick={() => setSidebarVisible(false)}
-                    className={
-                      currentTheme === 'retro' 
-                        ? "retro-button" 
-                        : "text-muted-foreground hover:text-foreground"
-                    }
+                    className="text-muted-foreground hover:text-foreground"
                   >
                     <PanelLeft className="w-4 h-4" />
                   </Button>
@@ -340,11 +218,7 @@ export default function App() {
                   size="sm"
                   variant={isWhiteboardVisible ? "default" : "ghost"}
                   onClick={() => setIsWhiteboardVisible(!isWhiteboardVisible)}
-                  className={`gap-2 ${
-                    currentTheme === 'retro'
-                      ? 'retro-button'
-                      : 'text-gray-400 hover:text-white'
-                  }`}
+                  className="gap-2 text-gray-400 hover:text-white"
                 >
                   <PanelRight className="w-4 h-4" />
                   Blackboard
@@ -352,11 +226,12 @@ export default function App() {
               </div>
             </div>
 
-            {/* Chat Interface or Mind Map */}
+            {/* Chat Interface or Concept Map */}
             <div className="flex-1">
-              {currentChat?.type === 'mindmap' ? (
-                <MindMapCanvas
-                  onGenerateTopics={generateMindMapTopics}
+              {currentChat?.type === 'conceptmap' ? (
+                <ConceptMap 
+                  onSave={currentChat ? (nodes) => saveConceptMap(currentChat.id, nodes) : undefined}
+                  onLoad={currentChat ? () => loadConceptMap(currentChat.id) : undefined}
                 />
               ) : (
                 <ChatInterface
@@ -366,7 +241,6 @@ export default function App() {
                   onImageAnalysis={(imageData) => {
                     // This will be called by the whiteboard
                   }}
-                  currentTheme={currentTheme}
                 />
               )}
             </div>
@@ -375,11 +249,7 @@ export default function App() {
 
         {/* Whiteboard */}
         {isWhiteboardVisible && (
-          <ResizableHandle className={`w-1 transition-colors ${
-            currentTheme === 'retro' 
-              ? 'retro-handle' 
-              : 'bg-border hover:bg-muted'
-          }`} />
+          <ResizableHandle className="w-1 transition-colors bg-border hover:bg-muted" />
         )}
         
         <ResizablePanel 
@@ -401,7 +271,6 @@ export default function App() {
                 }, 100);
               }
             }}
-            currentTheme={currentTheme}
           />
         </ResizablePanel>
       </ResizablePanelGroup>

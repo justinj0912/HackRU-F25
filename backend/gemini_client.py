@@ -2,6 +2,7 @@ import google.generativeai as genai
 from typing import Optional
 import json
 import re
+import math
 from config import GEMINI_API_KEY
 from models import ManimCodeResponse, MindMapNode
 
@@ -124,27 +125,33 @@ Output format (JSON):
 
     def generate_tutor_response(self, question: str, subject: Optional[str] = None) -> dict:
         """
-        Generate AI tutor response with friendly, simple explanations
+        Generate AI tutor response with clear, organized bullet points
         """
         prompt = f"""
-You are a friendly, patient AI tutor. Your goal is to make complex concepts simple and easy to understand.
+You are a knowledgeable, patient AI tutor. Your goal is to provide clear, organized explanations that help students understand concepts efficiently.
 
 User Message: "{question}"
 
-Please respond to what the user is saying. If they're greeting you, greet them back warmly. If they're asking a question, explain it simply. If they're making a statement, acknowledge it and ask a follow-up question.
+Please provide a well-structured response using proper markdown formatting with bullet points and clear organization.
 
 Guidelines:
 1. Always respond directly to what the user said
-2. Use simple language and short sentences
-3. Use analogies and real-world examples when explaining concepts
-4. Break down complex ideas into smaller, digestible parts
-5. Be encouraging and supportive
-6. Ask follow-up questions to check understanding
-7. Keep explanations concise but comprehensive
-8. If it's a greeting, be warm and ask what they'd like to learn about
-9. If it's a question, provide a clear, simple explanation
+2. Use clear, accessible language
+3. Use markdown formatting for structure:
+   - Use `-` for bullet points
+   - Use `**bold**` for emphasis on key terms
+   - Use `*italic*` for important concepts
+   - Use `##` for section headers when needed
+4. Organize information into logical bullet points
+5. Keep each bullet point concise but informative
+6. Use sub-bullets (indented with spaces) when breaking down complex ideas
+7. Include key examples and analogies where helpful
+8. Be encouraging and supportive
+9. If it's a greeting, be warm and ask what they'd like to learn about
+10. If it's a question, provide a clear, organized explanation
+11. Keep the overall response focused and digestible
 
-Format your response as a friendly, conversational reply that directly addresses what the user said.
+IMPORTANT: Format your response using proper markdown syntax. Use `-` for bullet points, `**text**` for bold, and proper indentation for sub-bullets.
 """
         
         try:
@@ -158,27 +165,33 @@ Format your response as a friendly, conversational reply that directly addresses
 
     def generate_tutor_response_stream(self, question: str, subject: str = None):
         """
-        Generate streaming tutor response
+        Generate streaming tutor response with clear, organized bullet points
         """
         prompt = f"""
-You are a friendly, patient AI tutor. Your goal is to make complex concepts simple and easy to understand.
+You are a knowledgeable, patient AI tutor. Your goal is to provide clear, organized explanations that help students understand concepts efficiently.
 
 User Message: "{question}"
 
-Please respond to what the user is saying. If they're greeting you, greet them back warmly. If they're asking a question, explain it simply. If they're making a statement, acknowledge it and ask a follow-up question.
+Please provide a well-structured response using proper markdown formatting with bullet points and clear organization.
 
 Guidelines:
 1. Always respond directly to what the user said
-2. Use simple language and short sentences
-3. Use analogies and real-world examples when explaining concepts
-4. Break down complex ideas into smaller, digestible parts
-5. Be encouraging and supportive
-6. Ask follow-up questions to check understanding
-7. Keep explanations concise but comprehensive
-8. If it's a greeting, be warm and ask what they'd like to learn about
-9. If it's a question, provide a clear, simple explanation
+2. Use clear, accessible language
+3. Use markdown formatting for structure:
+   - Use `-` for bullet points
+   - Use `**bold**` for emphasis on key terms
+   - Use `*italic*` for important concepts
+   - Use `##` for section headers when needed
+4. Organize information into logical bullet points
+5. Keep each bullet point concise but informative
+6. Use sub-bullets (indented with spaces) when breaking down complex ideas
+7. Include key examples and analogies where helpful
+8. Be encouraging and supportive
+9. If it's a greeting, be warm and ask what they'd like to learn about
+10. If it's a question, provide a clear, organized explanation
+11. Keep the overall response focused and digestible
 
-Format your response as a friendly, conversational reply that directly addresses what the user said.
+IMPORTANT: Format your response using proper markdown syntax. Use `-` for bullet points, `**text**` for bold, and proper indentation for sub-bullets.
 """
         
         try:
@@ -199,6 +212,10 @@ Format your response as a friendly, conversational reply that directly addresses
                 image_data = image_data.split(',')[1]
             
             import base64
+            # Add padding if needed
+            missing_padding = len(image_data) % 4
+            if missing_padding:
+                image_data += '=' * (4 - missing_padding)
             image_bytes = base64.b64decode(image_data)
             
             # Create the prompt for image analysis
@@ -310,75 +327,63 @@ Format your response as a friendly, conversational reply that directly addresses
             raise Exception(f"Failed to generate Manim code from image: {e}")
 
     def generate_manim_code_with_narration_from_image(self, image_data: str, question: str = None) -> tuple[str, str]:
-        """
-        Generate Manim code and narration script from an image
-        """
+        """Generate Manim code and narration from an image"""
+        import base64
+        
         try:
-            # Remove data URL prefix if present
-            if image_data.startswith('data:image'):
-                image_data = image_data.split(',')[1]
-            
-            import base64
+            # Decode image
             image_bytes = base64.b64decode(image_data)
             
-            prompt = f"""
-            Create a ManimCE v0.18+ animation explaining the concept shown in this image.
+            # Simple prompt for reliable code generation
+            prompt = f"""Create a ManimCE v0.18+ animation explaining this image.
 
-            RULES:
-            - Use Text() only, no Tex() or MathTex()
-            - Basic shapes only: Circle(), Square(), Line(), Dot(), Arrow()
-            - 5-8 seconds duration for complex equations, 3-5 seconds for simple topics
-            - Simple, educational
-            - For equations: Show complete step-by-step solution
-            - CRITICAL: Always wrap objects in animations like Create(), Write(), or DrawBorderThenFill()
-            - NEVER put raw objects like Arrow() directly in AnimationGroup()
-            - Use self.play(Create(arrow)) not self.play(arrow)
-            - Use only standard Manim colors: RED, GREEN, BLUE, YELLOW, WHITE, BLACK, GRAY, ORANGE, PURPLE, PINK
-            - NEVER use undefined colors like DARK_GREEN, LIGHT_BLUE, etc.
+RULES:
+- Use Text() only, no Tex() or MathTex()
+- Basic shapes only: Circle(), Square(), Line(), Dot(), Arrow()
+- 5-12 seconds in total for all topics and animations 
+- Simple, educational
+- For equations: Show complete step-by-step solution
+- CRITICAL: Always wrap objects in animations like Create(), Write(), or DrawBorderThenFill()
+- NEVER put raw objects like Arrow() directly in AnimationGroup()
+- Use self.play(Create(arrow)) not self.play(arrow)
+- Use only standard Manim colors: RED, GREEN, BLUE, YELLOW, WHITE, BLACK, GRAY, ORANGE, PURPLE, PINK
+- NEVER use undefined colors like DARK_GREEN, LIGHT_BLUE, etc.
 
-            Return format:
-            MANIM_CODE:
-            [Python code]
+Return format:
+MANIM_CODE:
+[Python code]
 
-            NARRATION:
-            [Short script, max 50 words]
-            """
+NARRATION:
+[Minimum 20 words, max 50 words], Avoid meta phrases like "this educational animation demonstrates key concepts and principles shown in the image, providing a clear explanation that helps viewers understand the underlying ideas and their practical applications."""
 
             if question:
-                prompt += f"\n\nUser's specific request: {question}"
+                prompt += f"\n\nUser request: {question}"
 
-            # Generate content with image
-            response = self.model.generate_content([
-                prompt,
-                {
-                    "mime_type": "image/png",
-                    "data": image_bytes
-                }
-            ])
-
+            # Generate content
+            response = self.model.generate_content([prompt, {"mime_type": "image/png", "data": image_bytes}])
             text = response.text
 
-            # Parse the response
-            if "MANIM_CODE:" in text and "NARRATION:" in text:
-                parts = text.split("NARRATION:")
-                manim_code = parts[0].replace("MANIM_CODE:", "").strip()
-                narration = parts[1].strip()
-                
-                # Clean up the Manim code
-                if manim_code.startswith('```python'):
-                    manim_code = manim_code[9:]
-                elif manim_code.startswith('```'):
-                    manim_code = manim_code[3:]
-                
-                if manim_code.endswith('```'):
-                    manim_code = manim_code[:-3]
-                
-                return manim_code.strip(), narration.strip()
-            else:
-                raise Exception("Invalid response format from Gemini")
+            # Extract code block and narration
+            if '```python' in text:
+                start = text.find('```python') + 9
+                end = text.find('```', start)
+                if end != -1:
+                    manim_code = text[start:end].strip()
+                    
+                    # Extract narration from response
+                    narration = "This educational animation demonstrates key concepts and principles shown in the image, providing a clear explanation that helps viewers understand the underlying ideas and their practical applications."
+                    if "NARRATION:" in text:
+                        narration_part = text.split("NARRATION:")[1].strip()
+                        if narration_part:
+                            narration = narration_part.split('\n')[0].strip()
+                    
+                    print(f"Generated narration: '{narration}'")
+                    return manim_code, narration
+            
+            raise Exception("No valid code block found")
 
         except Exception as e:
-            raise Exception(f"Failed to generate Manim code with narration from image: {e}")
+            raise Exception(f"Code generation failed: {e}")
 
     def generate_manim_code_with_narration(self, topic: str) -> tuple[str, str]:
         """
@@ -417,14 +422,17 @@ Format your response as a friendly, conversational reply that directly addresses
                 manim_code = parts[0].replace("MANIM_CODE:", "").strip()
                 narration = parts[1].strip()
                 
-                # Clean up the Manim code
-                if manim_code.startswith('```python'):
-                    manim_code = manim_code[9:]
-                elif manim_code.startswith('```'):
-                    manim_code = manim_code[3:]
-                
-                if manim_code.endswith('```'):
-                    manim_code = manim_code[:-3]
+                # Clean up the Manim code - extract only the code block
+                if '```python' in manim_code:
+                    start = manim_code.find('```python') + 9
+                    end = manim_code.find('```', start)
+                    if end != -1:
+                        manim_code = manim_code[start:end].strip()
+                elif '```' in manim_code:
+                    start = manim_code.find('```') + 3
+                    end = manim_code.find('```', start)
+                    if end != -1:
+                        manim_code = manim_code[start:end].strip()
                 
                 return manim_code.strip(), narration.strip()
             else:
@@ -447,23 +455,23 @@ Format your response as a friendly, conversational reply that directly addresses
 
     def _build_mind_map_prompt(self, topic: str, depth: int, max_branches: int) -> str:
         return f"""
-You are an expert educational content creator who generates mind maps with a main topic and floating suggestions.
+You are an expert educational content creator who generates a main topic node with 2-3 related suggestion titles for a flowchart-style mind map.
 
-Create a mind map for the topic: "{topic}"
+Create a main topic node for: "{topic}" with 2-3 related suggestion titles.
 
 Requirements:
-1. Create ONE main topic node that introduces and explains the core concept
-2. Create 4-6 floating suggestion nodes that suggest how to expand the topic
-3. Each node should have a clear, concise title and detailed explanation
-4. Focus on educational value and logical connections
-5. Suggestions should be specific, actionable ways to explore the topic further
+1. Create ONE main topic node that provides a comprehensive introduction and explanation
+2. Create 2-3 suggestion titles that are related subtopics or aspects of the main topic
+3. The main topic content should be detailed, educational, and cover the key aspects
+4. Keep the main topic summary concise - aim for 35 words maximum
+5. Suggestions should be just titles (no content) that users can click to explore further
 
-Return the response as a JSON array with the following structure:
+Return the response as a JSON array with exactly this structure:
 [
   {{
     "id": "main_topic",
     "title": "{topic}",
-    "content": "Comprehensive introduction and explanation of {topic}. This should be detailed and educational, covering the key aspects, importance, and basic understanding of the concept.",
+    "content": "Concise introduction to {topic}. Explain what it is, why it's important, and its main characteristics or applications. Keep it educational but brief - maximum 35 words.",
     "level": 0,
     "parent_id": null,
     "children": [],
@@ -472,50 +480,39 @@ Return the response as a JSON array with the following structure:
   }},
   {{
     "id": "suggestion_1",
-    "title": "Suggestion Title",
-    "content": "Detailed suggestion for how to expand or explore this aspect of {topic}. This should be specific and actionable.",
+    "title": "Related Topic 1",
+    "content": "",
     "level": 0,
-    "parent_id": null,
+    "parent_id": "main_topic",
     "children": [],
     "is_main_topic": false,
     "is_suggestion": true
   }},
   {{
-    "id": "suggestion_2",
-    "title": "Another Suggestion",
-    "content": "Another detailed suggestion for exploring {topic}.",
+    "id": "suggestion_2", 
+    "title": "Related Topic 2",
+    "content": "",
     "level": 0,
-    "parent_id": null,
+    "parent_id": "main_topic",
     "children": [],
     "is_main_topic": false,
     "is_suggestion": true
   }},
   {{
     "id": "suggestion_3",
-    "title": "Third Suggestion",
-    "content": "A third suggestion for expanding knowledge of {topic}.",
+    "title": "Related Topic 3", 
+    "content": "",
     "level": 0,
-    "parent_id": null,
-    "children": [],
-    "is_main_topic": false,
-    "is_suggestion": true
-  }},
-  {{
-    "id": "suggestion_4",
-    "title": "Fourth Suggestion",
-    "content": "A fourth suggestion for exploring {topic}.",
-    "level": 0,
-    "parent_id": null,
+    "parent_id": "main_topic",
     "children": [],
     "is_main_topic": false,
     "is_suggestion": true
   }}
 ]
 
-IMPORTANT: Return exactly this structure with the main topic and 4 suggestions. Do not create additional nodes or change the structure.
-The main topic should be comprehensive and educational.
-Suggestions should be floating nodes that users can accept or reject.
-Focus on creating a learning structure that helps users explore "{topic}" systematically.
+IMPORTANT: Return exactly this structure with the main topic and 2-3 suggestions.
+Suggestions should be just titles (empty content) that are related but distinct aspects of the main topic.
+Only the main topic should have content - suggestions are just clickable titles.
 """
 
     def _parse_mind_map_response(self, response_text: str, topic: str) -> list[MindMapNode]:
@@ -563,27 +560,44 @@ Focus on creating a learning structure that helps users explore "{topic}" system
         is_suggestion = node_data.get('is_suggestion', False)
         
         if is_main_topic:
-            # Main topic goes in the center
+            # Main topic goes in the center of the canvas
             return (400.0, 300.0)
         
         if is_suggestion:
-            # Suggestions positioned in a clean grid around the main topic
-            center_x, center_y = 400.0, 300.0
-            suggestion_index = index - 1  # Subtract 1 because main topic is index 0
+            # Suggestions positioned around their parent node
+            parent_id = node_data.get('parent_id')
+            if parent_id:
+                # Find parent node to position relative to it
+                parent_node = None
+                for n in all_nodes:
+                    if n['id'] == parent_id:
+                        parent_node = n
+                        break
+                
+                if parent_node:
+                    # Position suggestions in a small circle around the parent
+                    parent_x, parent_y = 400.0, 300.0  # Default center, will be overridden by parent position
+                    if parent_node.get('is_main_topic'):
+                        parent_x, parent_y = 400.0, 300.0  # Main topic is at center
+                    
+                    # Get all suggestions for this parent
+                    siblings = [n for n in all_nodes if n.get('parent_id') == parent_id and n.get('is_suggestion')]
+                    suggestion_index = siblings.index(node_data)
+                    
+                    # Position in a small circle around parent (closer than before)
+                    radius = 180  # Smaller radius for suggestion titles
+                    angle_step = (2 * math.pi) / len(siblings)  # Distribute evenly
+                    angle = suggestion_index * angle_step
+                    
+                    x = parent_x + radius * math.cos(angle)
+                    y = parent_y + radius * math.sin(angle)
+                    
+                    return (x, y)
             
-            # Position suggestions in a 2x2 grid around the main topic
-            if suggestion_index == 0:
-                x, y = center_x - 300, center_y - 150  # Top left
-            elif suggestion_index == 1:
-                x, y = center_x + 50, center_y - 150   # Top right
-            elif suggestion_index == 2:
-                x, y = center_x - 300, center_y + 50   # Bottom left
-            else:
-                x, y = center_x + 50, center_y + 50    # Bottom right
-            
-            return (x, y)
+            # Fallback positioning
+            return (200.0 + index * 150, 200.0 + index * 100)
         
-        # Regular child nodes
+        # Regular child nodes - position to the right of parent
         parent_id = node_data.get('parent_id')
         if parent_id:
             # Find parent and position relative to it
@@ -594,12 +608,69 @@ Focus on creating a learning structure that helps users explore "{topic}" system
                     break
             
             if parent_node:
-                # Position children to the right of parent
+                # Position children to the right of parent in a vertical stack
                 siblings = [n for n in all_nodes if n.get('parent_id') == parent_id]
                 sibling_index = siblings.index(node_data)
-                x = 400.0 + 300 + (sibling_index * 50)
-                y = 300.0 + (sibling_index * 100) - 100
+                x = 400.0 + 320  # Fixed distance to the right (accounting for wider nodes)
+                y = 300.0 + (sibling_index * 150) - (len(siblings) - 1) * 75  # Center vertically
                 return (x, y)
         
         # Default position
         return (200.0 + index * 200, 200.0 + index * 150)
+
+    def generate_subtopics(self, topic: str) -> list[str]:
+        """
+        Generate 3 directly related examples, processes, or specific concepts for a given topic
+        """
+        prompt = f"""You are an educational assistant helping to create a concept map for the topic "{topic}". 
+
+TASK: Suggest exactly 3 directly related examples, processes, or specific concepts that illustrate or are part of "{topic}". Each suggestion must be a real example or clearly related idea, not a generic label. Keep each example under 5 words. 
+
+Return ONLY a valid JSON array of strings.
+
+Example: ["Glucose", "Chlorophyll", "Light Energy"]"""
+        
+        try:
+            response = self.model.generate_content(prompt)
+            # Parse JSON response
+            import json
+            response_text = response.text.strip()
+            
+            # Remove markdown code blocks if present
+            if response_text.startswith('```json'):
+                response_text = response_text[7:]  # Remove ```json
+            if response_text.startswith('```'):
+                response_text = response_text[3:]   # Remove ```
+            if response_text.endswith('```'):
+                response_text = response_text[:-3]  # Remove trailing ```
+            
+            subtopics = json.loads(response_text.strip())
+            return subtopics[:3]  # Ensure max 3 subtopics
+        except Exception as e:
+            # Fallback to basic subtopics
+            return [f"{topic} Basics", f"{topic} Applications", f"{topic} Examples"]
+
+    def generate_summary(self, title: str) -> str:
+        """
+        Generate a 2-3 sentence summary for a given title
+        """
+        prompt = f"""
+You are an expert educational content creator. Generate a concise 2-3 sentence summary for the topic: "{title}"
+
+Requirements:
+1. Write exactly 2-3 sentences
+2. Provide a clear, educational explanation
+3. Include key concepts and importance
+4. Use simple, accessible language
+5. Make it informative but concise
+
+Example for "Light Reactions":
+"Light reactions are the first stage of photosynthesis that convert light energy into chemical energy. They occur in the thylakoid membranes of chloroplasts and produce ATP and NADPH. These energy carriers are essential for the subsequent Calvin cycle to fix carbon dioxide into glucose."
+"""
+        
+        try:
+            response = self.model.generate_content(prompt)
+            return response.text.strip()
+        except Exception as e:
+            # Fallback summary
+            return f"{title} is an important concept that involves key principles and applications. Understanding {title} helps build foundational knowledge in this field."

@@ -193,52 +193,56 @@ async def analyze_image(request: ImageAnalysisRequest):
 
 @app.post("/render-video-from-image", response_model=VideoResponse)
 async def render_video_from_image(request: ImageAnalysisRequest):
-    """
-    Generate and render a Manim video from an image
-    """
+    """Generate and render a Manim video from an image"""
     try:
-        # Generate Manim code and narration from image
-        manim_code, narration = gemini_client.generate_manim_code_with_narration_from_image(request.image_data, request.question)
+        # Validate and clean image data
+        if not request.image_data:
+            raise HTTPException(status_code=400, detail="No image data provided")
         
-        # Validate code before rendering
-        is_valid, error_msg = manim_renderer.validate_manim_code(manim_code)
-        if not is_valid:
-            raise HTTPException(status_code=400, detail=f"Invalid Manim code: {error_msg}")
+        # Clean base64 data
+        image_data = request.image_data
+        if image_data.startswith('data:image'):
+            image_data = image_data.split(',')[1]
         
-        # Extract scene name from the generated code
+        # Add padding if needed
+        missing_padding = len(image_data) % 4
+        if missing_padding:
+            image_data += '=' * (4 - missing_padding)
+        
+        # Generate Manim code and narration
+        manim_code, narration = gemini_client.generate_manim_code_with_narration_from_image(image_data, request.question)
         scene_name = manim_renderer.extract_scene_name(manim_code)
         
-        # Generate narration audio (only if narration is substantial)
-        narration_audio_path = None
-        if elevenlabs_client.should_generate_audio(narration):
-            narration_audio_path = elevenlabs_client.generate_speech(narration)
+        # Render video first
+        video_path_str, duration, file_size = manim_renderer.render_animation(manim_code, scene_name)
         
-        # Render the animation
-        result = manim_renderer.render_animation(manim_code, scene_name)
-        video_path_str, duration, file_size = result
-        video_path = Path(video_path_str)
-        
-        # Combine video with narration audio
-        if narration_audio_path and Path(narration_audio_path).exists():
-            video_path_str = manim_renderer.combine_video_audio(str(video_path), narration_audio_path)
-            video_path = Path(video_path_str)
-        
-        if video_path and video_path.exists():
-            # Construct the video URL
-            video_url = f"/videos/{video_path.relative_to(manim_renderer.output_dir)}"
+        # Always generate audio and combine with video
+        try:
+            print(f"Generating audio for: {narration}")
+            audio_path = elevenlabs_client.generate_speech(narration)
             
-            return VideoResponse(
-                video_url=video_url,
-                duration=duration,
-                file_size=file_size,
-                created_at=datetime.now(),
-                narration_audio_url=None  # Audio is now embedded in video
-            )
-        else:
-            raise HTTPException(status_code=500, detail="Failed to render video from image")
+            if Path(audio_path).exists():
+                print(f"Audio generated: {audio_path}")
+                # Combine video and audio
+                final_video_path = manim_renderer.combine_video_audio(video_path_str, audio_path)
+                video_path_str = final_video_path
+                print(f"Video with audio: {video_path_str}")
+            else:
+                print("Audio file not found, using video without audio")
+                
+        except Exception as e:
+            print(f"Audio generation failed: {e}, using video without audio")
+        
+        return VideoResponse(
+            video_url=f"/videos/{Path(video_path_str).relative_to(manim_renderer.output_dir)}",
+            duration=duration,
+            file_size=file_size,
+            created_at=datetime.now(),
+            narration_audio_url=None
+        )
             
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to generate video from image: {e}")
+        raise HTTPException(status_code=500, detail=f"Video generation failed: {str(e)}")
 
 @app.post("/text-to-speech", response_model=TextToSpeechResponse)
 async def text_to_speech(request: TextToSpeechRequest):
@@ -307,6 +311,42 @@ async def generate_mind_map(request: MindMapRequest):
             status_code=500,
             detail=f"Failed to generate mind map: {str(e)}"
         )
+
+@app.post("/generate-subtopics")
+async def generate_subtopics(request: dict):
+    """Generate 2-4 related subtopic titles for a given topic"""
+    try:
+        topic = request.get("topic", "")
+        if not topic:
+            raise HTTPException(status_code=400, detail="Topic is required")
+        
+        subtopics = gemini_client.generate_subtopics(topic)
+        
+        return {
+            "subtopics": subtopics,
+            "topic": topic,
+            "created_at": datetime.now()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate subtopics: {str(e)}")
+
+@app.post("/generate-summary")
+async def generate_summary(request: dict):
+    """Generate a 2-3 sentence summary for a given title"""
+    try:
+        title = request.get("title", "")
+        if not title:
+            raise HTTPException(status_code=400, detail="Title is required")
+        
+        summary = gemini_client.generate_summary(title)
+        
+        return {
+            "summary": summary,
+            "title": title,
+            "created_at": datetime.now()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate summary: {str(e)}")
 
 if __name__ == "__main__":
     uvicorn.run(

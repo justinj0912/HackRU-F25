@@ -29,10 +29,13 @@ class ManimRenderer:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             
+            # Update code with unique scene name
+            updated_code = self._update_scene_name_in_code(manim_code, scene_name)
+            
             # Write Manim code to file
             script_path = temp_path / "animation.py"
             with open(script_path, 'w') as f:
-                f.write(manim_code)
+                f.write(updated_code)
             
             try:
                 # Run Manim command with Windows compatibility
@@ -159,33 +162,31 @@ class ManimRenderer:
             print(f"Warning: Failed to cleanup old videos: {e}")
     
     def extract_scene_name(self, code: str) -> str:
-        """Extract the scene class name from Manim code"""
+        """Extract the scene class name from Manim code and make it unique"""
         import re
+        import time
+        
         match = re.search(r'class\s+(\w+)\s*\([^)]*Scene[^)]*\)', code)
         if match:
-            return match.group(1)
-        return "Explanation"  # Default fallback
+            base_name = match.group(1)
+            # Add timestamp to make it unique
+            unique_name = f"{base_name}_{int(time.time() * 1000)}"
+            return unique_name
+        return f"Explanation_{int(time.time() * 1000)}"  # Default fallback with timestamp
+    
+    def _update_scene_name_in_code(self, code: str, new_scene_name: str) -> str:
+        """Update the scene class name in the code"""
+        import re
+        # Replace the class name with the unique one
+        pattern = r'class\s+(\w+)\s*\([^)]*Scene[^)]*\)'
+        replacement = f'class {new_scene_name}(Scene)'
+        return re.sub(pattern, replacement, code)
     
     def validate_manim_code(self, code: str) -> Tuple[bool, str]:
         """Validate Manim code syntax before rendering"""
         try:
-            # Basic syntax check
             compile(code, '<string>', 'exec')
-            
-            # Check for required imports
-            if 'from manim import' not in code and 'import manim' not in code:
-                return False, "Missing Manim import"
-            
-            # Check for Scene class
-            if 'class' not in code or 'Scene' not in code:
-                return False, "Missing Scene class definition"
-            
-            # Check for construct method
-            if 'def construct' not in code:
-                return False, "Missing construct method"
-            
             return True, "Code is valid"
-            
         except SyntaxError as e:
             return False, f"Syntax error: {str(e)}"
         except Exception as e:
@@ -194,6 +195,7 @@ class ManimRenderer:
     def combine_video_audio(self, video_path: str, audio_path: str) -> str:
         """
         Combine video and audio files into a single video with audio using ffmpeg
+        If audio is longer than video, pause on the last frame until audio ends
         
         Args:
             video_path: Path to the video file
@@ -203,38 +205,75 @@ class ManimRenderer:
             Path to the combined video file
         """
         try:
+            # Get durations
+            video_duration = self._get_video_duration(Path(video_path))
+            audio_duration = self._get_audio_duration(Path(audio_path))
+            
+            print(f"Video duration: {video_duration}s, Audio duration: {audio_duration}s")
+            
             # Create output path
             video_path_obj = Path(video_path)
             output_path = video_path_obj.parent / f"{video_path_obj.stem}_with_audio{video_path_obj.suffix}"
             
-            # Use ffmpeg to combine video and audio
-            # -c:v copy: copy video stream without re-encoding
-            # -c:a aac: encode audio as AAC
-            # -map 0:v:0: map video from first input
-            # -map 1:a:0: map audio from second input
-            # -y: overwrite output file
-            cmd = [
-                'ffmpeg',
-                '-i', video_path,
-                '-i', audio_path,
-                '-c:v', 'copy',
-                '-c:a', 'aac',
-                '-map', '0:v:0',
-                '-map', '1:a:0',
-                '-y',
-                str(output_path)
-            ]
+            if audio_duration > video_duration:
+                # Audio is longer - extend video by pausing on last frame
+                cmd = [
+                    'ffmpeg',
+                    '-i', video_path,
+                    '-i', audio_path,
+                    '-c:v', 'libx264',
+                    '-c:a', 'aac',
+                    '-filter_complex', f'[0:v]tpad=stop_mode=clone:stop_duration={audio_duration - video_duration}[v]',
+                    '-map', '[v]',
+                    '-map', '1:a',
+                    '-y',
+                    str(output_path)
+                ]
+            else:
+                # Video is longer or equal - use shortest
+                cmd = [
+                    'ffmpeg',
+                    '-i', video_path,
+                    '-i', audio_path,
+                    '-c:v', 'copy',
+                    '-c:a', 'aac',
+                    '-shortest',
+                    '-y',
+                    str(output_path)
+                ]
             
-            result = subprocess.run(cmd, capture_output=True, text=True)
+            print(f"Combining video and audio: {video_path} + {audio_path}")
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
             
-            if result.returncode == 0:
+            if result.returncode == 0 and output_path.exists():
+                print(f"Successfully combined video and audio")
                 # Replace original video with the one that has audio
                 shutil.move(str(output_path), video_path)
                 return video_path
             else:
-                print(f"FFmpeg error: {result.stderr}")
+                print(f"FFmpeg failed: {result.stderr}")
                 return video_path  # Return original video if combination fails
                 
         except Exception as e:
             print(f"Error combining video and audio: {e}")
             return video_path  # Return original video if combination fails
+    
+    def _get_audio_duration(self, audio_path: Path) -> float:
+        """Get audio duration using ffprobe"""
+        try:
+            cmd = [
+                "ffprobe",
+                "-v", "quiet",
+                "-show_entries", "format=duration",
+                "-of", "csv=p=0",
+                str(audio_path)
+            ]
+            
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode == 0:
+                return float(result.stdout.strip())
+            else:
+                return 5.0  # Default fallback
+                
+        except Exception:
+            return 5.0  # Default fallback

@@ -62,24 +62,6 @@ class ElevenLabsClient:
             Path to the generated audio file
         """
         try:
-            # Create cache key
-            cache_key = f"{text}_{voice_id}"
-            
-            # Check exact cache first
-            if cache_key in self.cache:
-                cached_path = self.cache[cache_key]
-                if Path(cached_path).exists():
-                    return cached_path
-            
-            # Check for similar text (80% similarity threshold)
-            similar_path = self.find_similar_text(text)
-            if similar_path:
-                # Cache this new text with the similar audio
-                self.cache[cache_key] = similar_path
-                self.similarity_cache[text] = similar_path
-                self.save_cache()
-                return similar_path
-            
             # Create filename based on text hash
             text_hash = hashlib.md5(text.encode()).hexdigest()[:8]
             filename = f"speech_{text_hash}.mp3"
@@ -87,12 +69,9 @@ class ElevenLabsClient:
             
             # Check if file already exists
             if output_path.exists():
-                self.cache[cache_key] = str(output_path)
-                self.similarity_cache[text] = str(output_path)
-                self.save_cache()
                 return str(output_path)
             
-            # Generate audio only if not cached (use faster model)
+            # Generate audio using ElevenLabs
             audio = generate(
                 text=text,
                 voice=voice_id,
@@ -102,10 +81,6 @@ class ElevenLabsClient:
             # Save to output directory
             save(audio, str(output_path))
             
-            # Cache the result
-            self.cache[cache_key] = str(output_path)
-            self.similarity_cache[text] = str(output_path)
-            self.save_cache()
             return str(output_path)
                 
         except Exception as e:

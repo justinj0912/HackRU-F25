@@ -1823,259 +1823,93 @@
 
 :root {
   --font-size: 16px;
-  --background: #3d2e1f;
-  --foreground: #e8dcc8;
-  --card: #4a3424;
-  --card-foreground: #e8dcc8;
-  --popover: #4a3424;
-  --popover-foreground: #e8dcc8;
-  --primary: #6B4423;
-  --primary-foreground: #e8dcc8;
-  --secondary: #5a3a1f;
-  --secondary-foreground: #e8dcc8;
-  --muted: #5a3a1f;
-  --muted-foreground: #a89578;
-  --accent: #CD7F32;
-  --accent-foreground: #3d2e1f;
-  --destructive: #6B4423;
-  --destructive-foreground: #e8dcc8;
-  --border: rgba(139, 90, 60, 0.4);
-  --input: rgba(139, 90, 60, 0.2);
-  --input-background: #5a3a1f;
-  --switch-background: #6B4423;
+  --background: #1a0f0a;
+  --foreground: #c9a579;
+  --card: #2a1c14;
+  --card-foreground: #c9a579;
+  --popover: #2a1c14;
+  --popover-foreground: #c9a579;
+  --primary: #c17a4a;
+  --primary-foreground: #1a0f0a;
+  --secondary: #8b5a3c;
+  --secondary-foreground: #c9a579;
+  --muted: #3d2818;
+  --muted-foreground: #9b7d5f;
+  --accent: #d9925f;
+  --accent-foreground: #1a0f0a;
+  --destructive: #8b2500;
+  --destructive-foreground: #c9a579;
+  --border: #5a3d28;
+  --input: transparent;
+  --input-background: #1a0f0a;
+  --switch-background: #5a3d28;
   --font-weight-medium: 500;
   --font-weight-normal: 400;
-  --ring: #6B4423;
-  --chart-1: #6B4423;
-  --chart-2: #CD7F32;
-  --chart-3: #6B4423;
-  --chart-4: #B87333;
-  --chart-5: #A0694B;
-  --radius: 0.125rem;
-  --sidebar: #2a1f16;
-  --sidebar-foreground: #e8dcc8;
-  --sidebar-primary: #8B5A3C;
-  --sidebar-primary-foreground: #e8dcc8;
-  --sidebar-accent: #3d2e1f;
-  --sidebar-accent-foreground: #e8dcc8;
-  --sidebar-border: rgba(139, 90, 60, 0.4);
-  --sidebar-ring: #8B5A3C;
+  --ring: #c17a4a;
+  --chart-1: #c17a4a;
+  --chart-2: #d9925f;
+  --chart-3: #8b5a3c;
+  --chart-4: #b8733f;
+  --chart-5: #a66840;
+  --radius: .25rem;
+  --sidebar: #2a1c14;
+  --sidebar-foreground: #c9a579;
+  --sidebar-primary: #c17a4a;
+  --sidebar-primary-foreground: #1a0f0a;
+  --sidebar-accent: #3d2818;
+  --sidebar-accent-foreground: #c9a579;
+  --sidebar-border: #5a3d28;
+  --sidebar-ring: #c17a4a;
+  --brass: #b8733f;
+  --copper: #c17a4a;
+  --bronze: #8b5a3c;
+  --iron: #3d3d3d;
+  --rust: sienna;
+  --parchment: #c9a579;
+  --leather: #5a3d28;
 }
 
 .dark {
-  --background: #2a1f16;
-  --foreground: #f5ead2;
-  --card: #3d2e1f;
-  --card-foreground: #f5ead2;
-  --popover: #3d2e1f;
-  --popover-foreground: #f5ead2;
-  --primary: #8B5A3C;
-  --primary-foreground: #2a1f16;
-  --secondary: #6B4423;
-  --secondary-foreground: #f5ead2;
-  --muted: #4a3424;
-  --muted-foreground: #b8a789;
-  --accent: #CD7F32;
-  --accent-foreground: #2a1f16;
-  --destructive: #8B5A3C;
-  --destructive-foreground: #f5ead2;
-  --border: rgba(184, 115, 51, 0.4);
-  --input: rgba(184, 115, 51, 0.2);
-  --ring: #8B5A3C;
+  --background: #1a1410;
+  --foreground: #e8dcc4;
+  --card: #2a1f1a;
+  --card-foreground: #e8dcc4;
+  --popover: #2a1f1a;
+  --popover-foreground: #e8dcc4;
+  --primary: #d4af37;
+  --primary-foreground: #1a1410;
+  --secondary: #8b6914;
+  --secondary-foreground: #e8dcc4;
+  --muted: #3d2f23;
+  --muted-foreground: #a89072;
+  --accent: #cd7f32;
+  --accent-foreground: #1a1410;
+  --destructive: sienna;
+  --destructive-foreground: #e8dcc4;
+  --border: #6b5640;
+  --input: #3d2f23;
+  --ring: #d4af37;
   --font-weight-medium: 500;
   --font-weight-normal: 400;
-  --chart-1: #B87333;
-  --chart-2: #CD7F32;
-  --chart-3: #8B5A3C;
-  --chart-4: #A0694B;
-  --chart-5: #6B4423;
-  --sidebar: #1a1510;
-  --sidebar-foreground: #f5ead2;
-  --sidebar-primary: #B87333;
-  --sidebar-primary-foreground: #0d0a07;
-  --sidebar-accent: #2a1f16;
-  --sidebar-accent-foreground: #f5ead2;
-  --sidebar-border: rgba(184, 115, 51, 0.4);
-  --sidebar-ring: #B87333;
+  --chart-1: #d4af37;
+  --chart-2: #cd7f32;
+  --chart-3: #8b6914;
+  --chart-4: #b8860b;
+  --chart-5: #996515;
+  --sidebar: #2a1f1a;
+  --sidebar-foreground: #e8dcc4;
+  --sidebar-primary: #d4af37;
+  --sidebar-primary-foreground: #1a1410;
+  --sidebar-accent: #3d2f23;
+  --sidebar-accent-foreground: #e8dcc4;
+  --sidebar-border: #6b5640;
+  --sidebar-ring: #d4af37;
 }
 
 html {
   font-size: var(--font-size);
 }
 
-.retro-theme {
-  --retro-gray: silver;
-  --retro-light: #dfdfdf;
-  --retro-dark: gray;
-  --retro-darker: #404040;
-  --retro-black: #000;
-  --retro-blue: #00f;
-  --retro-red: red;
-  --retro-yellow: #ff0;
-  --retro-green: green;
-  --retro-white: #fff;
-  --retro-purple: purple;
-}
-
-
-.font-retro {
-  font-family: MS Sans Serif, Segoe UI, Tahoma, Geneva, Verdana, sans-serif;
-  font-size: 11px;
-}
-
-.bg-retro-gray {
-  background-color: var(--retro-gray);
-}
-
-.bg-retro-light {
-  background-color: var(--retro-light);
-}
-
-.bg-retro-dark {
-  background-color: var(--retro-dark);
-}
-
-.border-retro-dark {
-  border-color: var(--retro-dark);
-}
-
-.border-retro-light {
-  border-color: var(--retro-light);
-}
-
-.text-retro-black {
-  color: var(--retro-black);
-}
-
-.text-retro-blue {
-  color: var(--retro-blue);
-}
-
-.retro-outset {
-  border: 2px outset var(--retro-gray);
-  background-color: var(--retro-gray);
-}
-
-.retro-inset {
-  border: 2px inset var(--retro-gray);
-  background-color: var(--retro-gray);
-}
-
-.retro-button {
-  background-color: var(--retro-gray) !important;
-  border: 2px outset var(--retro-gray) !important;
-  color: var(--retro-black) !important;
-  border-radius: 0 !important;
-  min-height: 23px !important;
-  padding: 2px 8px !important;
-  font-family: MS Sans Serif, sans-serif !important;
-  font-size: 11px !important;
-}
-
-.retro-button:hover {
-  background-color: var(--retro-light) !important;
-}
-
-.retro-button:active {
-  border: 2px inset var(--retro-gray) !important;
-  background-color: var(--retro-dark) !important;
-}
-
-.retro-input {
-  background-color: var(--retro-white) !important;
-  border: 2px inset var(--retro-gray) !important;
-  color: var(--retro-black) !important;
-  border-radius: 0 !important;
-  padding: 2px 4px !important;
-  font-family: MS Sans Serif, sans-serif !important;
-  font-size: 11px !important;
-}
-
-.retro-panel {
-  background-color: var(--retro-gray) !important;
-  border: 2px outset var(--retro-gray) !important;
-  color: var(--retro-black) !important;
-}
-
-.retro-window {
-  background-color: var(--retro-gray) !important;
-  border: 2px outset var(--retro-gray) !important;
-}
-
-.retro-titlebar {
-  background: linear-gradient(90deg, var(--retro-blue) 0%, #4080ff 100%) !important;
-  color: var(--retro-white) !important;
-  border-bottom: 1px solid var(--retro-dark) !important;
-  padding: 2px 4px !important;
-  font-family: MS Sans Serif, sans-serif !important;
-  font-size: 11px !important;
-  font-weight: bold !important;
-}
-
-.retro-scrollbar {
-  scrollbar-width: auto;
-  scrollbar-color: var(--retro-dark) var(--retro-gray);
-}
-
-.retro-scrollbar::-webkit-scrollbar {
-  width: 16px;
-  height: 16px;
-}
-
-.retro-scrollbar::-webkit-scrollbar-track {
-  background-color: var(--retro-gray);
-  border: 1px inset var(--retro-gray);
-}
-
-.retro-scrollbar::-webkit-scrollbar-thumb {
-  background-color: var(--retro-gray);
-  border: 2px outset var(--retro-gray);
-}
-
-.retro-scrollbar::-webkit-scrollbar-thumb:hover {
-  background-color: var(--retro-light);
-}
-
-.retro-scrollbar::-webkit-scrollbar-corner {
-  background-color: var(--retro-gray);
-}
-
-.retro-card {
-  background-color: var(--retro-gray) !important;
-  border: 2px inset var(--retro-gray) !important;
-  color: var(--retro-black) !important;
-  border-radius: 0 !important;
-}
-
-.retro-card:hover {
-  background-color: var(--retro-light) !important;
-}
-
-.retro-card.active {
-  background-color: var(--retro-blue) !important;
-  color: var(--retro-white) !important;
-}
-
-.retro-separator {
-  background-color: var(--retro-dark) !important;
-  border: 1px inset var(--retro-gray) !important;
-  height: 2px !important;
-}
-
-.retro-handle {
-  background-color: var(--retro-gray) !important;
-  border: 2px outset var(--retro-gray) !important;
-  width: 4px !important;
-}
-
-.retro-handle:hover {
-  background-color: var(--retro-light) !important;
-}
-
-.retro-canvas {
-  background-color: var(--retro-white) !important;
-  border: 2px inset var(--retro-gray) !important;
-}
 
 @property --tw-space-y-reverse {
   syntax: "*";

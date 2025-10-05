@@ -1,5 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { ChevronDown, ChevronRight, Plus, Edit3, Trash2 } from 'lucide-react';
+import * as React from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { Settings, X, Plus, Edit3, Trash2 } from 'lucide-react';
 import { Button } from './ui/button';
 
 export interface MindMapNodeData {
@@ -28,6 +29,9 @@ interface MindMapNodeProps {
   onAcceptSuggestion: (suggestionId: string) => void;
   onRejectSuggestion: (suggestionId: string) => void;
   scale: number;
+  onDragStart?: (id: string) => void;
+  onDrag?: (id: string, x: number, y: number) => void;
+  onDragEnd?: () => void;
 }
 
 export function MindMapNode({
@@ -40,9 +44,39 @@ export function MindMapNode({
   onExpand,
   onAcceptSuggestion,
   onRejectSuggestion,
-  scale
+  scale,
+  onDragStart,
+  onDrag,
+  onDragEnd
 }: MindMapNodeProps) {
   const nodeRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsDragging(true);
+    setDragOffset({
+      x: e.clientX - node.x,
+      y: e.clientY - node.y,
+    });
+    onDragStart?.(node.id);
+  };
+
+  const handleMouseMove = (e: MouseEvent) => {
+    if (isDragging) {
+      const newX = e.clientX - dragOffset.x;
+      const newY = e.clientY - dragOffset.y;
+      onDrag?.(node.id, newX, newY);
+    }
+  };
+
+  const handleMouseUp = () => {
+    if (isDragging) {
+      setIsDragging(false);
+      onDragEnd?.();
+    }
+  };
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -57,163 +91,130 @@ export function MindMapNode({
     onUpdate(node.id, { content: newContent });
   };
 
-  const getNodeSize = () => {
-    // TinkFlow-style sizing - compact and clean
-    const maxWidth = 280;
-    const minWidth = 200;
-    const minHeight = 80;
-    
-    // Calculate based on content length
-    const contentWidth = Math.min(maxWidth, Math.max(minWidth, Math.max(node.title.length * 8, node.content.length * 3) + 40));
-    const contentHeight = Math.max(minHeight, (node.content.split('\n').length * 14) + 60);
-    
-    return {
-      width: contentWidth,
-      height: contentHeight
-    };
+  React.useEffect(() => {
+    if (isDragging) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+      return () => {
+        window.removeEventListener('mousemove', handleMouseMove);
+        window.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [isDragging, dragOffset]);
+
+  // Auto-size based on content - no fixed dimensions
+  const [nodeDimensions, setNodeDimensions] = useState({ width: 280, height: 120 });
+  
+  const measureContent = () => {
+    if (nodeRef.current) {
+      const contentElement = nodeRef.current.querySelector('.content-area');
+      const titleElement = nodeRef.current.querySelector('.title-bar');
+      
+      if (contentElement && titleElement) {
+        const contentRect = contentElement.getBoundingClientRect();
+        const titleRect = titleElement.getBoundingClientRect();
+        
+        // Calculate total dimensions including padding
+        const padding = 16; // px-4 = 16px horizontal padding
+        const minWidth = node.isSuggestion ? 120 : 200; // Smaller for suggestions
+        const minHeight = node.isSuggestion ? 60 : 80; // Smaller for suggestions
+        
+        // Use the wider of title or content for width
+        const contentWidth = Math.max(
+          titleRect.width + padding * 2,
+          contentRect.width + padding * 2
+        );
+        
+        const totalHeight = titleRect.height + contentRect.height;
+        
+        setNodeDimensions({
+          width: Math.max(minWidth, contentWidth),
+          height: Math.max(minHeight, totalHeight)
+        });
+      }
+    }
   };
 
-  const { width, height } = getNodeSize();
+  React.useEffect(() => {
+    // Use a small delay to ensure DOM is updated
+    const timer = setTimeout(measureContent, 10);
+    return () => clearTimeout(timer);
+  }, [node.content, node.title]);
 
   return (
     <div
       ref={nodeRef}
-      className={`absolute select-none transition-all duration-200 ${
-        isSelected ? 'z-50' : 'z-10'
-      }`}
+      className="absolute select-none cursor-move group"
       style={{
-        left: node.x,
-        top: node.y,
-        width: width,
-        height: height,
-        transform: `scale(${scale})`,
-        transformOrigin: 'top left'
+        left: `${node.x}px`,
+        top: `${node.y}px`,
+        transform: 'translate(-50%, -50%)',
+        width: `${nodeDimensions.width}px`,
+        height: `${nodeDimensions.height}px`,
       }}
-      onClick={handleClick}
+      onMouseDown={handleMouseDown}
     >
-      <div
-        className={`node-content bg-background border rounded-lg shadow-sm p-4 h-full flex flex-col ${
-          node.isMainTopic 
-            ? 'border-accent shadow-accent/10 bg-accent/5' 
-            : node.isSuggestion
-            ? 'border-secondary shadow-secondary/10 bg-secondary/5'
-            : isSelected 
-            ? 'border-primary shadow-primary/10 bg-primary/5' 
-            : 'border-border hover:border-primary/30 hover:shadow-md'
-        }`}
-      >
-        {/* Title */}
-        <div className="flex items-center justify-between mb-3">
-          {node.isEditing ? (
-            <input
-              type="text"
-              value={node.title}
-              onChange={(e) => onUpdate(node.id, { title: e.target.value })}
-              onBlur={() => onUpdate(node.id, { isEditing: false })}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  handleTitleEdit(node.title);
-                }
-              }}
-              className="bg-transparent border-none outline-none text-foreground font-semibold text-base flex-1"
-              autoFocus
-            />
-          ) : (
-            <h3 
-              className={`font-semibold text-base flex-1 cursor-pointer ${
-                node.isMainTopic ? 'text-accent' : 
-                node.isSuggestion ? 'text-secondary' : 'text-foreground'
-              }`}
-              onClick={() => onUpdate(node.id, { isEditing: true })}
-            >
-              {node.title}
-            </h3>
-          )}
-
-          <div className="flex items-center gap-1">
+      <div className="relative h-full">
+        {/* Delete button */}
+        {onDelete && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(node.id);
+            }}
+            className="absolute -top-3 -right-3 w-7 h-7 rounded-full bg-gradient-to-br from-primary to-secondary border-2 border-background opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center z-10 hover:scale-110 hover:shadow-lg hover:shadow-primary/50 cursor-pointer"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <X className="w-4 h-4 text-background" strokeWidth={3} />
+          </button>
+        )}
+        
+        {/* Main node body */}
+        <div 
+          className={`relative border-2 border-primary bg-gradient-to-br from-card to-background rounded shadow-2xl overflow-hidden h-full transition-all duration-200 hover:scale-105 hover:shadow-[0_0_30px_rgba(193,122,74,0.4)] ${
+            node.isSuggestion ? 'cursor-pointer opacity-60 hover:opacity-90 border-dashed' : ''
+          }`}
+          onClick={node.isSuggestion ? () => onAcceptSuggestion?.(node.id) : undefined}
+        >
+          {/* Copper plate texture */}
+          <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_30%_30%,_var(--primary)_0%,transparent_50%)]" />
+          
+          {/* Top copper bar */}
+          <div className="title-bar relative bg-gradient-to-r from-secondary via-primary to-secondary px-4 py-2 border-b border-border">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-full bg-background/50 border border-primary/30 flex-shrink-0">
+                <Settings className="w-4 h-4 text-accent" />
+              </div>
+              <span className={`tracking-wide drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] truncate ${
+                node.isSuggestion ? 'text-sm' : 'text-foreground'
+              }`}>
+                {node.isSuggestion ? '💡 ' : ''}{node.title}
+              </span>
+            </div>
+          </div>
+          
+          {/* Content area */}
+          <div className="content-area px-4 py-3">
             {node.isSuggestion ? (
-              <>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-6 w-6 p-0 hover:bg-green-500/20 text-green-600"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onAcceptSuggestion(node.id);
-                  }}
-                >
-                  ✓
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-6 w-6 p-0 hover:bg-red-500/20 text-red-600"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onRejectSuggestion(node.id);
-                  }}
-                >
-                  ✕
-                </Button>
-              </>
+              <p className="text-foreground text-xs drop-shadow-[0_1px_1px_rgba(0,0,0,0.6)] italic">
+                Click to explore this topic
+              </p>
             ) : (
-              <>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-6 w-6 p-0 hover:bg-muted"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onAddChild(node.id);
-                  }}
-                >
-                  <Plus className="w-3 h-3" />
-                </Button>
-                
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-6 w-6 p-0 hover:bg-muted"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onUpdate(node.id, { isEditing: true });
-                  }}
-                >
-                  <Edit3 className="w-3 h-3" />
-                </Button>
-                
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-6 w-6 p-0 hover:bg-muted text-destructive hover:text-destructive/80"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDelete(node.id);
-                  }}
-                >
-                  <Trash2 className="w-3 h-3" />
-                </Button>
-              </>
+              <p className="text-foreground text-sm drop-shadow-[0_1px_1px_rgba(0,0,0,0.6)]" style={{ wordWrap: 'break-word', overflowWrap: 'break-word' }}>
+                {node.content}
+              </p>
             )}
           </div>
+          
+          {/* Corner decorations */}
+          <div className="absolute top-0 left-0 w-8 h-8 border-t border-l border-primary/20 rounded-tl" />
+          <div className="absolute bottom-0 right-0 w-8 h-8 border-b border-r border-primary/20 rounded-br" />
         </div>
-
-        {/* Content */}
-        <div className="text-muted-foreground text-sm leading-relaxed whitespace-pre-wrap break-words overflow-hidden flex-1">
-          {node.content}
+        
+        {/* Glow effect on hover */}
+        <div className="absolute inset-0 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+          <div className="absolute inset-0 rounded bg-primary/10 blur-xl" />
         </div>
-
-        {/* Type indicator */}
-        {node.isMainTopic && (
-          <div className="absolute -top-2 -left-2 w-5 h-5 bg-accent rounded-full border-2 border-background text-xs flex items-center justify-center text-accent-foreground font-bold">
-            M
-          </div>
-        )}
-        {node.isSuggestion && (
-          <div className="absolute -top-2 -left-2 w-5 h-5 bg-secondary rounded-full border-2 border-background text-xs flex items-center justify-center text-secondary-foreground font-bold">
-            ?
-          </div>
-        )}
       </div>
     </div>
   );
